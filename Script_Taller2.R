@@ -28,6 +28,8 @@ set.seed(10101)
 id_train <- sample(1:nrow(train_hogares),size = 0.7*nrow(train_hogares), replace = F)
 BD_train<-train_hogares[id_train,]
 BD_test<-train_hogares[-id_train,]
+
+
 #Modelos entrenamiento
 model_1<-lm(LnIng~1,data = BD_train)
 model_2<-lm(LnIng~age,data = BD_train)
