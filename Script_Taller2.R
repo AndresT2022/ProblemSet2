@@ -19,15 +19,11 @@ p_load(tidyverse, caret, rio,
 getwd()
 
 ## Data Cleaning
-unzip("dataPS2.zip")
-train_hogares <- read.csv("train_hogares.csv",header=TRUE, sep="," )
-train_personas <- read.csv("train_personas.csv",header=TRUE, sep="," )
-test_hogares <- read.csv("test_hogares.csv",header=TRUE, sep="," )
-test_personas <- read.csv("test_personas.csv",header=TRUE, sep="," )
-
-colnames(train_hogares)
-colnames(train_personas)
-
+unzip("dataPS2RDS.zip")
+train_hogares <- readRDS("data/train_hogares.Rds")
+train_personas <- readRDS("data/train_personas.Rds")
+test_hogares <- readRDS("data/test_hogares.Rds" )
+test_personas <- readRDS("data/test_personas.Rds")
 
 
 ## recategorizar variable
