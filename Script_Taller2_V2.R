@@ -91,9 +91,13 @@ BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% select(-"P6240")
 
 #Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495), No solucionado @@@@
 
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(is.na(P7495)==F)   ##Borrar NA´s
+
 #Durante los últimos doce meses, ¿recibió dinero de otros hogares,
 #personas o instituciones no gubernamentales; dinero por intereses,
 #dividendos, utilidades o por cesantias? (P7505)                           No solucionado @@@@
+
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(is.na(P7505)==F)   ##Borrar NA´s
 
 #P6210 asigno Na´s a cat 9
 BD_Pru_Per_Lim$P6210 <-ifelse(is.na(BD_Pru_Per_Lim$P6210)==T,  9,BD_Pru_Per_Lim$P6210)
@@ -140,9 +144,13 @@ BD_Ent_Per_Lim <- mutate_at(BD_Ent_Per_Lim, c("Pet","Oc","Des","Ina"), ~replace(
 
 #Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495), No solucionado @@@@
 
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(is.na(P7495)==F)   ##Borrar NA´s
+
 #Durante los últimos doce meses, ¿recibió dinero de otros hogares,
 #personas o instituciones no gubernamentales; dinero por intereses,
 #dividendos, utilidades o por cesantias? (P7505)                           No solucionado @@@@
+
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(is.na(P7505)==F)   ##Borrar NA´s
 
 ##Asignar NA´s a cat 9
 BD_Ent_Per_Lim$P6100 <-ifelse(is.na(BD_Ent_Per_Lim$P6100)==T,  9,BD_Ent_Per_Lim$P6100)
