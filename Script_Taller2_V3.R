@@ -73,14 +73,13 @@ BD_Pru_Per_Lim<-BD_Pru_Per %>%
          -"P7160",-"P7350",-"P7500s2",-"P7500s3",-"P7510s1",-"P7510s2",
          -"P7510s3",-"P7510s5",-"P7510s6",-"P7510s7",-"Fex_c",-"Depto",-"Fex_dpto",
          -"P7310",-"P6590",-"P6620",-"P7472",-"P7422",-"P6920",-"Oficio",-"P6430",
-         -"P6800",-"P7040",-"P7090"
+         -"P6800",-"P7040",-"P7090",-"P6100"
          )
 
 #convierto na en ceros de Pet, Oc, Des, Ina
 BD_Pru_Per_Lim <- mutate_at(BD_Pru_Per_Lim, c("Pet","Oc","Des","Ina"), ~replace(., is.na(.), 0))
 
 ##Asignar NA´s a cat 9
-BD_Pru_Per_Lim$P6100 <-ifelse(is.na(BD_Pru_Per_Lim$P6100)==T,  9,BD_Pru_Per_Lim$P6100)
 BD_Pru_Per_Lim$P6090 <-ifelse(is.na(BD_Pru_Per_Lim$P6090)==T,  9,BD_Pru_Per_Lim$P6090)
 
 #borrar variable de grado - P6210s1, dado que ya tenemos escolaridad en P6210
@@ -89,13 +88,13 @@ BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% select(-"P6210s1")
 #borrar variable de en que ocupo tiempo semana antr - P6240
 BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% select(-"P6240")
 
-#Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495), No solucionado @@@@
+#Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495), 
 
 BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(is.na(P7495)==F)   ##Borrar NA´s
 
 #Durante los últimos doce meses, ¿recibió dinero de otros hogares,
 #personas o instituciones no gubernamentales; dinero por intereses,
-#dividendos, utilidades o por cesantias? (P7505)                           No solucionado @@@@
+#dividendos, utilidades o por cesantias? (P7505)                          
 
 BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(is.na(P7505)==F)   ##Borrar NA´s
 
@@ -105,7 +104,7 @@ BD_Pru_Per_Lim$P6210 <-ifelse(is.na(BD_Pru_Per_Lim$P6210)==T,  9,BD_Pru_Per_Lim$
 #Volver variables categoricas
 BD_Pru_Per_Lim <- BD_Pru_Per_Lim %>%
   mutate_at(.vars = c("Clase","Dominio","Pet","Oc","Des","Ina","P6020","P6040","P6050",
-                      "P6090","P6100","P6210"
+                      "P6090","P6210"
                       ,"P7495","P7505"),
             .funs = factor)
 
@@ -137,28 +136,27 @@ BD_Ent_Per_Lim<-BD_Ent_Per %>%
          -"Cclasnr3",-"Cclasnr4",-"Cclasnr5",-"Cclasnr6",-"Cclasnr7",-"Cclasnr8",-"Cclasnr11",
          -"Impaes",-"Isaes",-"Iees",-"Imdies",-"Iof1es",-"Iof2es",-"Iof3hes",-"Iof3ies",
          -"Iof6es",-"Ingtotob",-"Ingtotes",
-         -"P6590",-"P7472",-"P6920",-"Oficio",-"P6800",-"P6210s1",-"P6240")
+         -"P6590",-"P7472",-"P6920",-"Oficio",-"P6800",-"P6210s1",-"P6240",-"P6100")
 
 #convierto na en ceros de Pet, Oc, Des, Ina
 BD_Ent_Per_Lim <- mutate_at(BD_Ent_Per_Lim, c("Pet","Oc","Des","Ina"), ~replace(., is.na(.), 0))
 
-#Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495), No solucionado @@@@
+#Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495)
 
 BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(is.na(P7495)==F)   ##Borrar NA´s
 
 #Durante los últimos doce meses, ¿recibió dinero de otros hogares,
 #personas o instituciones no gubernamentales; dinero por intereses,
-#dividendos, utilidades o por cesantias? (P7505)                           No solucionado @@@@
+#dividendos, utilidades o por cesantias? (P7505)                    
 
 BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(is.na(P7505)==F)   ##Borrar NA´s
 
 ##Asignar NA´s a cat 9
-BD_Ent_Per_Lim$P6100 <-ifelse(is.na(BD_Ent_Per_Lim$P6100)==T,  9,BD_Ent_Per_Lim$P6100)
 BD_Ent_Per_Lim$P6090 <-ifelse(is.na(BD_Ent_Per_Lim$P6090)==T,  9,BD_Ent_Per_Lim$P6090)
 
 #Volver variables categoricas
 BD_Ent_Per_Lim <- BD_Ent_Per_Lim %>%
-  mutate_at(.vars = c("Clase","Dominio","P6020","P6050","P6090","P6100",
+  mutate_at(.vars = c("Clase","Dominio","P6020","P6050","P6090",
                       "P7495","P6210","P7505","Pet","Oc","Des","Ina"),
             .funs = factor)
 
@@ -170,24 +168,77 @@ porcentaje_na <- arrange(porcentaje_na, desc(cantidad_na)) # Ordenamos de mayor 
 porcentaje_na <- rownames_to_column(porcentaje_na, "variable")# Convertierte el nombre de la fila en columna
 write.csv(porcentaje_na, file="CantidadNa_BD_Ent_Per_Lim.csv", row.names = FALSE)
 
-#Tratamiento bases de datos individuales a hogares ---------------------------------------------------------
+#Unir bases de datos individuales a hogares ---------------------------------------------------------
 
-BD_Ent_Hog_Lim
-BD_Ent_Per_Lim
-colnames(BD_Ent_Hog_Lim)
-colnames(BD_Ent_Per_Lim)
+# 1. Pretratamiento BD_Ent_Per_Lim
 
 #p6020, sexo, no relevante
 #p6040, edad, no relevante
 #p6050, parentesco con jefe hogar, 1 Jefe Hogar
+
+VectorAuxIngreso<- BD_Ent_Per_Lim %>% group_by(id) %>% 
+  summarize(sum_Ingtot=sum(Ingtot))
+
+dim(VectorAuxIngreso)
+
 #p6090, cotizante-beneficiario seg social, 1 si, 2 no, 9 no sabe
 table(BD_Ent_Per_Lim$P6090) # sirve
+#p6210, Max educ. 1.Ninguno 2.Prescolar 3.Primaria 4.Secundaria 5.Media 6.Superior 9. No sabe
+table(BD_Ent_Per_Lim$P6210) # sirve
+#p7495, Recibio pago por arriendo y/o pension? 1. Si 2. No
+table(BD_Ent_Per_Lim$P7495) # sirve
+#p7505, Recibio dinero de otros hogares, instituciones, intereses, dividendos o uti censantias. 1.Si 2.No
+table(BD_Ent_Per_Lim$P7505) # sirve
 
+#con lo siguiente queda solo info del jefe hogar
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(P6050=="1")
+dim(BD_Ent_Per_Lim)
 
-BD_Ent_Per_Lim_Prueba<- BD_Ent_Per_Lim %>% group_by(id) %>% 
-  summarize(sum(Ingtot))
-dim(BD_Ent_Per_Lim_Prueba)
+#unir BD_Ent_Per_Lim con VectorAuxIngreso
 
+BD_Ent_Per_Lim<-left_join(BD_Ent_Per_Lim,VectorAuxIngreso, by="id")
+dim(BD_Ent_Per_Lim)
+
+#borrar variables q ya no sirve
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim %>% 
+  select(-"Ingtot",-"Clase",-"Dominio")
+
+#2. Unir bases de datos de entrenamiento
+
+dim(BD_Ent_Hog_Lim)
+dim(BD_Ent_Per_Lim)
+BD_Ent_Hog_Lim<-left_join(BD_Ent_Hog_Lim,BD_Ent_Per_Lim, by="id")
+dim(BD_Ent_Hog_Lim)
+
+# 3. Pretratamiento BD_Pru_Per_Lim
+
+#p6020, sexo, no relevante
+#p6040, edad, no relevante
+#p6050, parentesco con jefe hogar, 1 Jefe Hogar
+
+#p6090, cotizante-beneficiario seg social, 1 si, 2 no, 9 no sabe
+table(BD_Pru_Per_Lim$P6090) # sirve
+#p6210, Max educ. 1.Ninguno 2.Prescolar 3.Primaria 4.Secundaria 5.Media 6.Superior 9. No sabe
+table(BD_Pru_Per_Lim$P6210) # sirve
+#p7495, Recibio pago por arriendo y/o pension? 1. Si 2. No
+table(BD_Pru_Per_Lim$P7495) # sirve
+#p7505, Recibio dinero de otros hogares, instituciones, intereses, dividendos o uti censantias. 1.Si 2.No
+table(BD_Pru_Per_Lim$P7505) # sirve
+
+#con lo siguiente queda solo info del jefe hogar
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(P6050=="1")
+dim(BD_Pru_Per_Lim)
+
+#borrar variables q ya no sirve
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% 
+  select(-"Clase",-"Dominio")
+
+#2. Unir bases de datos de entrenamiento
+
+dim(BD_Pru_Hog_Lim)
+dim(BD_Pru_Per_Lim)
+BD_Pru_Hog_Lim<-left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
+dim(BD_Pru_Hog_Lim)
 
 #-------------------------------------------------------------------------------------------------
 
