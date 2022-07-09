@@ -4,7 +4,7 @@ rm(list=ls()) ## Limpiar el entorno de trabajo
 library(tidyverse)
 require(pacman)
 require(dplyr)
-
+p_load(diffdf,gtsummary)
 p_load(rio) # Librería para importar datos 
 p_load(tidyverse) # Librería para limpiar datos
 p_load(e1071) # Tiene la función para calcular skewness
@@ -23,6 +23,13 @@ BD_Pru_Hog<-readRDS("test_hogares.Rds")
 BD_Pru_Per<-readRDS("test_personas.Rds")
 BD_Ent_Hog<-readRDS("train_hogares.Rds")
 BD_Ent_Per<-readRDS("train_personas.Rds")
+
+dim(BD_Pru_Hog)
+dim(BD_Ent_Hog)
+dim(BD_Pru_Per)
+dim(BD_Ent_Per)
+
+
 
 #Limpieza de datos ---------------------------------------------------------------------
 
@@ -74,7 +81,7 @@ BD_Pru_Per_Lim<-BD_Pru_Per %>%
          -"P7510s3",-"P7510s5",-"P7510s6",-"P7510s7",-"Fex_c",-"Depto",-"Fex_dpto",
          -"P7310",-"P6590",-"P6620",-"P7472",-"P7422",-"P6920",-"Oficio",-"P6430",
          -"P6800",-"P7040",-"P7090",-"P6100"
-         )
+  )
 
 #convierto na en ceros de Pet, Oc, Des, Ina
 BD_Pru_Per_Lim <- mutate_at(BD_Pru_Per_Lim, c("Pet","Oc","Des","Ina"), ~replace(., is.na(.), 0))
@@ -233,69 +240,73 @@ dim(BD_Pru_Per_Lim)
 BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% 
   select(-"Clase",-"Dominio")
 
-#2. Unir bases de datos de entrenamiento y prueba 
+#2. Unir bases de datos de entrenamiento
 
 dim(BD_Pru_Hog_Lim)
 dim(BD_Pru_Per_Lim)
+BD_Pru_Hog_Lim<-left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
+
+
+
+dim(BD_Pru_Hog_Lim)
+dim(BD_Ent_Hog_Lim)
+
+colnames(BD_Pru_Hog_Lim)
+colnames(BD_Ent_Hog_Lim)
+
+BD_Ent_Hog_Lim <- BD_Ent_Hog_Lim %>%
+  mutate_at(.vars = c("P6040"),
+            .funs = factor)
 
 
 
 
-BD_Pru_Hog_Lim <- left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
+str(BD_Pru_Hog_Lim)
+str(BD_Ent_Hog_Lim)
 
 
-BD_Hog_Train_Lim_Final <-  left_join(BD_Pru_Hog_Lim,
-                                   BD_Ent_Hog_Lim %>% dplyr::select(Ingtotug,Ingtotugarr,Ingpcug, Pobre,Indigente,Npobres,Nindigentes,id),
-                                   by = "id")
+BD_Hog_Lim <- bind_rows(BD_Pru_Hog_Lim,BD_Ent_Hog_Lim)
+
+#Modelos de Regresión -----------------------------------------------
 
 
-BD_Hog_Test_Lim_Final <- select(BD_Ent_Hog_Lim, - sum_Ingtot)
-
-
-BD_Hog_Train_Lim_Final$Ingtotug <- as.numeric(BD_Hog_Train_Lim_Final$Ingtotug) 
-BD_Hog_Train_Lim_Final$Ingtotugarr <- as.numeric(BD_Hog_Train_Lim_Final$Ingtotugarr) 
-BD_Hog_Train_Lim_Final$Ingpcug <- as.numeric(BD_Hog_Train_Lim_Final$Ingpcug) 
-
-
-BD_Hog_Test_Lim_Final$Ingtotug <- as.numeric(BD_Hog_Test_Lim_Final$Ingtotug) 
-BD_Hog_Test_Lim_Final$Ingtotugarr <- as.numeric(BD_Hog_Test_Lim_Final$Ingtotugarr) 
-BD_Hog_Test_Lim_Final$Ingpcug <- as.numeric(BD_Hog_Test_Lim_Final$Ingpcug) 
-
-
-dim(BD_Hog_Train_Lim_Final)
-dim(BD_Hog_Test_Lim_Final)
-
-summary(BD_Hog_Train_Lim_Final)
-summary(BD_Hog_Test_Lim_Final)
-
-
-#-------------------------------------------------------------------------------------------------
-
-#Punto 5
-#Punto 5.a
-library(ISLR2)
 #Selección muestra de entrenamiento y prueba
-set.seed(10101)
+
+id_train <- sample(1:nrow(BD_Hog_Lim),size = 0.7*nrow(BD_Hog_Lim), replace = F)
+BD_train<-BD_Hog_Lim[id_train,]
+BD_test<-BD_Hog_Lim[-id_train,]
+
+BD_train<-drop_na(BD_train)
+BD_test<-drop_na(BD_test)
+
+
+summary(BD_train$Pobre)
+summary(BD_test$Pobre)
+
+dim(BD_train)
+dim(BD_test)
 #Modelos entrenamiento
-model_1<-lm(Ingtotugarr~1,data = BD_Hog_Train_Lim_Final)
-model_2<-lm(Ingtotugarr~Lp,data = BD_Hog_Train_Lim_Final)
-model_3<-lm(Ingtotugarr~ Li,data = BD_Hog_Train_Lim_Final)
-model_4<-lm(Ingtotugarr~Lp+Li,data = BD_Hog_Train_Lim_Final)
-model_5<-lm(Ingtotugarr~Lp+P5000,data = BD_Hog_Train_Lim_Final)
-model_6<-lm(Ingtotugarr~Lp+P5090,data = BD_Hog_Train_Lim_Final)
-model_7<-lm(Ingtotugarr~poly(Lp, 2),data = BD_Hog_Train_Lim_Final)
-model_8<-lm(Ingtotugarr~poly(Lp, 2)+P5000,data = BD_Hog_Train_Lim_Final)
-model_9<-lm(Ingtotugarr~poly(Lp, 2)+P5000+P5090,data = BD_Hog_Train_Lim_Final)
+model_1<-lm(Ingtotugarr~1,data = BD_train) 
+model_2<-lm(Ingtotugarr~Lp,data = BD_train)
+model_3<-lm(Ingtotugarr~ Li,data = BD_train)
+model_4<-lm(Ingtotugarr~Lp+Li,data = BD_train)
+model_5<-lm(Ingtotugarr~Lp+P5000,data = BD_train)
+model_6<-lm(Ingtotugarr~Lp+P5090,data = BD_train)
+model_7<-lm(Ingtotugarr~poly(Lp, 2),data = BD_train)
+model_8<-lm(Ingtotugarr~poly(Lp, 2)+P5000,data = BD_train)
+model_9<-lm(Ingtotugarr~poly(Lp, 2)+P5000+P5090,data = BD_train)
+
+
 #Modelos fuera de muestra
-BD_test$model_1<-predict(model_1,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_2<-predict(model_2,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_3<-predict(model_3,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_4<-predict(model_4,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_5<-predict(model_5,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_6<-predict(model_6,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_7<-predict(model_7,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_8<-predict(model_8,newdata = BD_Hog_Test_Lim_Final)
-BD_test$model_9<-predict(model_9,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_1<-predict(model_1,newdata =  BD_test)
+BD_test$model_2<-predict(model_2,newdata = BD_test)
+BD_test$model_3<-predict(model_3,newdata = BD_test)
+BD_test$model_4<-predict(model_4,newdata = BD_test)
+BD_test$model_5<-predict(model_5,newdata = BD_test)
+BD_test$model_6<-predict(model_6,newdata = BD_test)
+BD_test$model_7<-predict(model_7,newdata = BD_test)
+BD_test$model_8<-predict(model_8,newdata = BD_test)
+BD_test$model_9<-predict(model_9,newdata = BD_test)
 #MSE
 mse01<-with(BD_test,mean((Ingtotugarr-model_1)^2))
 mse02<-with(BD_test,mean((Ingtotugarr-model_2)^2))
@@ -316,6 +327,88 @@ graf2<-ggplot(mapping = aes(x=1:9, y=vmse1))+
   theme(plot.title = element_text(hjust = 0.5))+
   scale_x_continuous(breaks = seq(1,9,1))
 graf2
+
+
+
+
+
+
+
+
+require("gtsummary") #buen paquete para tablas descriptivas
+require(caret)
+
+BD_Hog_Lim <- clean_names(BD_Hog_Lim)
+levels(BD_Hog_Lim$p5090) <- c("Propia", "Propia Pagando","Arriendo","Usufructo","Sin titulo","Otra") 
+BD_Hog_Lim$pobre <- factor((BD_Hog_Lim$pobre), levels=c(0, 1) , labels = c("No", "Si"))
+
+
+BD_Hog_Lim <- BD_Hog_Lim %>%
+  mutate_at(.vars = c("p5000","p5010"),
+            .funs = factor)
+glimpse(BD_Hog_Lim)
+
+set.seed(10101)
+split1 <- createDataPartition(BD_Hog_Lim$pobre, p = .7)[[1]]
+other <- BD_Hog_Lim[-split1,] %>% drop_na()  
+training <- BD_Hog_Lim[ split1,] %>% drop_na()  
+
+
+
+## Now create the evaluation and test sets
+set.seed(10101)
+split2 <- createDataPartition(other$pobre, p = 1/3)[[1]]
+evaluation <- other[ split2,]%>% drop_na()
+testing <- other[-split2,] %>% drop_na()
+
+
+dim(training)
+dim(testing)
+dim(evaluation)
+
+
+ctrl_def <- trainControl(method = "cv",
+                         number = 5,
+                         summaryFunction = defaultSummary,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+
+
+lambda_grid <- 10^seq(-4, 0.01, length = 200) #en la practica se suele usar una grilla de 200 o 300
+lambda_grid
+
+#lapply(training[c('pobre', 'p5090', 'lp')], unique)
+
+
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
+ctrl<- trainControl(method = "cv",
+                    number = 5,
+                    summaryFunction = fiveStats,
+                    classProbs = T,
+                    verbose=FALSE,
+                    savePredictions = T)
+
+
+set.seed(1410)
+mylogit_lasso_acc <- train(
+  pobre ~(lp^2),
+  data = training,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "Accuracy",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale"))
+  
+
+
+
+mylogit_lasso_acc
+
+
+
+
 
 #Numeral a.V:
 ujs<-c()
