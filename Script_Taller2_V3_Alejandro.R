@@ -233,87 +233,196 @@ dim(BD_Pru_Per_Lim)
 BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% 
   select(-"Clase",-"Dominio")
 
-#2. Unir bases de datos de entrenamiento
+#2. Unir bases de datos de entrenamiento y prueba 
 
 dim(BD_Pru_Hog_Lim)
 dim(BD_Pru_Per_Lim)
-BD_Pru_Hog_Lim<-left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
-dim(BD_Pru_Hog_Lim)
+
+
+
+
+BD_Pru_Hog_Lim <- left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
+
+
+BD_Hog_Train_Lim_Final <-  left_join(BD_Pru_Hog_Lim,
+                                   BD_Ent_Hog_Lim %>% dplyr::select(Ingtotug,Ingtotugarr,Ingpcug, Pobre,Indigente,Npobres,Nindigentes,id),
+                                   by = "id")
+
+
+BD_Hog_Test_Lim_Final <- select(BD_Ent_Hog_Lim, - sum_Ingtot)
+
+
+BD_Hog_Train_Lim_Final$Ingtotug <- as.numeric(BD_Hog_Train_Lim_Final$Ingtotug) 
+BD_Hog_Train_Lim_Final$Ingtotugarr <- as.numeric(BD_Hog_Train_Lim_Final$Ingtotugarr) 
+BD_Hog_Train_Lim_Final$Ingpcug <- as.numeric(BD_Hog_Train_Lim_Final$Ingpcug) 
+
+
+BD_Hog_Test_Lim_Final$Ingtotug <- as.numeric(BD_Hog_Test_Lim_Final$Ingtotug) 
+BD_Hog_Test_Lim_Final$Ingtotugarr <- as.numeric(BD_Hog_Test_Lim_Final$Ingtotugarr) 
+BD_Hog_Test_Lim_Final$Ingpcug <- as.numeric(BD_Hog_Test_Lim_Final$Ingpcug) 
+
+
+dim(BD_Hog_Train_Lim_Final)
+dim(BD_Hog_Test_Lim_Final)
+
+summary(BD_Hog_Train_Lim_Final)
+summary(BD_Hog_Test_Lim_Final)
+
 
 #-------------------------------------------------------------------------------------------------
 
-## recategorizar variable-
-db = train_hogares %>% 
-  mutate(Pobre=ifelse(Pobre==1,"pobre (1)","no pobre (0)") %>% as.factor())
+#Punto 5
+#Punto 5.a
+library(ISLR2)
+#Selección muestra de entrenamiento y prueba
+set.seed(10101)
+#Modelos entrenamiento
+model_1<-lm(Ingtotugarr~1,data = BD_Hog_Train_Lim_Final)
+model_2<-lm(Ingtotugarr~Lp,data = BD_Hog_Train_Lim_Final)
+model_3<-lm(Ingtotugarr~ Li,data = BD_Hog_Train_Lim_Final)
+model_4<-lm(Ingtotugarr~Lp+Li,data = BD_Hog_Train_Lim_Final)
+model_5<-lm(Ingtotugarr~Lp+P5000,data = BD_Hog_Train_Lim_Final)
+model_6<-lm(Ingtotugarr~Lp+P5090,data = BD_Hog_Train_Lim_Final)
+model_7<-lm(Ingtotugarr~poly(Lp, 2),data = BD_Hog_Train_Lim_Final)
+model_8<-lm(Ingtotugarr~poly(Lp, 2)+P5000,data = BD_Hog_Train_Lim_Final)
+model_9<-lm(Ingtotugarr~poly(Lp, 2)+P5000+P5090,data = BD_Hog_Train_Lim_Final)
+#Modelos fuera de muestra
+BD_test$model_1<-predict(model_1,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_2<-predict(model_2,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_3<-predict(model_3,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_4<-predict(model_4,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_5<-predict(model_5,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_6<-predict(model_6,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_7<-predict(model_7,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_8<-predict(model_8,newdata = BD_Hog_Test_Lim_Final)
+BD_test$model_9<-predict(model_9,newdata = BD_Hog_Test_Lim_Final)
+#MSE
+mse01<-with(BD_test,mean((Ingtotugarr-model_1)^2))
+mse02<-with(BD_test,mean((Ingtotugarr-model_2)^2))
+mse03<-with(BD_test,mean((Ingtotugarr-model_3)^2))
+mse04<-with(BD_test,mean((Ingtotugarr-model_4)^2))
+mse05<-with(BD_test,mean((Ingtotugarr-model_5)^2))
+mse06<-with(BD_test,mean((Ingtotugarr-model_6)^2))
+mse07<-with(BD_test,mean((Ingtotugarr-model_7)^2))
+mse08<-with(BD_test,mean((Ingtotugarr-model_8)^2))
+mse09<-with(BD_test,mean((Ingtotugarr-model_9)^2))
+#Grafica MSE
+vmse1<-c(mse01,mse02,mse03,mse04,mse05,mse06,mse07,mse08,mse09)
+graf2<-ggplot(mapping = aes(x=1:9, y=vmse1))+
+  geom_line(color="blue")+
+  xlab("Modelos")+
+  ylab("MSE")+
+  ggtitle("Resumen MSE")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_x_continuous(breaks = seq(1,9,1))
+graf2
 
-str(db)
-
-## fijar semilla
-set.seed(210422)
-
-## generar observaciones aleatorias
-test <- sample(x=1:32, size=10)
-
-## reescalar variables (para calcular distancias)
-x <- scale(db[,-9]) 
-apply(x,2,sd) ## verificar
-
-## k-vecinos
-k1 = knn(train=x[-test,], ## base de entrenamiento
-         test=x[test,],   ## base de testeo
-         cl=db$am[-test], ## outcome
-         k=1)        ## vecinos 
-
-tibble(db$am[test],k1)
-
-## matriz de confusión
-confusionMatrix(data=k1 , 
-                reference=db$am[test] , 
-                mode="sens_spec" , 
-                positive="manual (1)")
-
-cm = confusionMatrix(data=k1 , reference=db$am[test], positive="pobre (1)")$table
-cm
-
-## obtener los valores manualmente 
-(cm[1,1]+cm[2,2])/sum(cm) ## Accuracy
-cm[2,2]/sum(cm[,2]) ## Sensitivity
-cm[1,1]/sum(cm[,1]) ## Specificity
-cm[2,1]/sum(cm[2,]) ## Ratio Falsos Positivos
-cm[1,2]/sum(cm[1,]) ## Ratio Falsos Negativos
-
-##=== 2. Regresión: Logit y Probit ===##
-
-## obtener datos
-geih <- import("https://eduard-martinez.github.io/teaching/meca-4107/geih.rds")
-head(geih)
+#Numeral a.V:
+ujs<-c()
+hjs<-c()
+alphas <- c()
+for (j in 1:nrow(BD_test)) {
+  uj <- model_9$residual[j]
+  hj <- lm.influence(model_9)$hat[j]
+  alpha <- uj/(1-hj)
+  alphas <- c(alphas, alpha)
+  ujs <- c(ujs, uj)
+  hjs <- c(hjs, hj)
+}
+#BD para analizar leverage
+BD_Leverage<-cbind(BD_test,alphas)
+y_out_test<-predict(model_9,BD_Leverage)
+y_real_test<-BD_Leverage$LnIng
+ggplot(BD_Leverage, aes(x=1:4052))+
+  xlab("Observaciones")+
+  geom_point(aes(y=y_real_test, color="red"))+
+  ylab("Ingreso con arriendo imputado")+
+  geom_point(aes(y=y_out_test), color="blue")+
+  theme_classic()+
+  ggtitle("Ingreso real vs predicho")+
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 
-## modelo a ajustar
-model <- as.formula("ocu ~ age + sex + factor(maxEducLevel)")
 
-## estimación logit
-logit <- glm(model , family=binomial(link="logit") , data=geih)
-tidy(logit)
+alpha
+alphas
+ggplot(BD_test, aes(x=alphas, y=LnIng))+
+  geom_point(color="red")+
+  theme_classic()+
+  ggtitle("Leverage Stadistic Modelo 9")+
+  theme(plot.title = element_text(hjust = 0.5))
 
-## estimación probit
-probit <- glm(model , family=binomial(link="probit") , data=geih)
-tidy(probit)
+#Punto 5b. K-fold cross-validation.
+install.packages("caret")
+library(dplyr)
+library(caret)
+#modelos
+model_1CV<-train(Ingtotugarr~.,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="null")
+model_1CV<-train(Ingtotugarr~1,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="null")
+model_2CV<-train(Ingtotugarr~Lp,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_3CV<-train(Ingtotugarr~ Li,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_4CV<-train(Ingtotugarr~Lp+Li,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_5CV<-train(Ingtotugarr~Lp+P5000,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_6CV<-train(Ingtotugarr~Lp+P5090,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_7CV<-train(Ingtotugarr~poly(Lp, 2),
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_8CV<-train(Ingtotugarr~poly(Lp, 2)+P5000,
+                 data =  data_clean_ocu,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_9CV<-train(Ingtotugarr~poly(Lp, 2)+P5000+P5090,
+                 data =  BD_Hog_Train_Lim_Final,
+                 trControl=trainControl(method = "cv",number = 5),
+                 method="lm")
+model_2CV
+model_3CV
+model_4CV
+model_5CV
+model_6CV
+model_7CV
+model_8CV
+model_9CV
 
-## ratio de los coeficientes
-logit$coefficients / probit$coefficients
-
-## preddicción
-geih$ocu_log = predict(logit , newdata=geih , type="response")
-geih$ocu_prob = predict(probit , newdata=geih , type="response")
-head(geih)
-
-## definir la regla
-rule=0.7
-geih$ocu_prob = ifelse(geih$ocu_prob>rule,1,0)
-geih$ocu_log = ifelse(geih$ocu_log>rule,1,0)
-head(geih)
+#Numeral c. LOOCV
+BD_Hog_Train_Lim_Final$MSE_LOOCV <- 1
+for (i in 1:nrow(BD_Hog_Train_Lim_Final)) {
+  #Establecer BD
+  BD_train_LOOCV<-BD_Hog_Train_Lim_Final[-c(i),]
+  dim(BD_train_LOOCV)
+  BD_test_LOOCV<-BD_Hog_Train_Lim_Final[c(i),]
+  dim(BD_test_LOOCV)
+  #Modelo entrenamiento
+  model_9LOOCV<-lm(LnIng~poly(exp, 2)+sex+age,data = BD_train_LOOCV)
+  #Modelo fuera de muestra
+  BD_test_LOOCV$model_9LOOCV<-predict(model_9LOOCV,newdata = BD_test_LOOCV)
+  #MSE
+  BD_Hog_Train_Lim_Final$MSE_LOOCV[i]<-with(BD_test_LOOCV,mean((LnIng-model_9LOOCV)^2))
+}
+mean(BD_Hog_Train_Lim_Final$MSE_LOOCV)
 
 
 
