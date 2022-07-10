@@ -1,10 +1,14 @@
 rm(list=ls()) ## Limpiar el entorno de trabajo
-
+getwd() #Establezco mi directorio
 #Librerias-------------------------------------------------------------------------------
 library(tidyverse)
+#install.packages("caret")
+library(dplyr)
+library(caret)
+
 require(pacman)
 require(dplyr)
-p_load(diffdf,gtsummary)
+p_load(diffdf,gtsummary, janitor)
 p_load(rio) # Librería para importar datos 
 p_load(tidyverse) # Librería para limpiar datos
 p_load(e1071) # Tiene la función para calcular skewness
@@ -18,7 +22,7 @@ p_load(kableExtra) # Tablas dentro de Rmarkdown
 
 #Lectura bases de datos ----------------------------------------------------------------
 
-getwd() #Establezco mi directorio
+
 BD_Pru_Hog<-readRDS("test_hogares.Rds")
 BD_Pru_Per<-readRDS("test_personas.Rds")
 BD_Ent_Hog<-readRDS("train_hogares.Rds")
@@ -265,8 +269,8 @@ str(BD_Pru_Hog_Lim)
 str(BD_Ent_Hog_Lim)
 
 
-BD_Hog_Lim <- bind_rows(BD_Pru_Hog_Lim,BD_Ent_Hog_Lim)
-
+BD_Hog_Lim <- bind_rows(BD_Pru_Hog_Lim,BD_Ent_Hog_Lim) %>% drop_na()
+glimpse(BD_Hog_Lim)
 #Modelos de Regresión -----------------------------------------------
 
 
@@ -283,18 +287,19 @@ BD_test<-drop_na(BD_test)
 summary(BD_train$Pobre)
 summary(BD_test$Pobre)
 
-dim(BD_train)
+dim(BD_train) 
+colnames(BD_train)
 dim(BD_test)
 #Modelos entrenamiento
 model_1<-lm(Ingtotugarr~1,data = BD_train) 
 model_2<-lm(Ingtotugarr~Lp,data = BD_train)
 model_3<-lm(Ingtotugarr~ Li,data = BD_train)
 model_4<-lm(Ingtotugarr~Lp+Li,data = BD_train)
-model_5<-lm(Ingtotugarr~Lp+P5000,data = BD_train)
-model_6<-lm(Ingtotugarr~Lp+P5090,data = BD_train)
+model_5<-lm(Ingtotugarr~Lp+P5000 + Oc + P6210,data = BD_train)
+model_6<-lm(Ingtotugarr~Lp+P5090 + Oc + P6210,data = BD_train)
 model_7<-lm(Ingtotugarr~poly(Lp, 2),data = BD_train)
-model_8<-lm(Ingtotugarr~poly(Lp, 2)+P5000,data = BD_train)
-model_9<-lm(Ingtotugarr~poly(Lp, 2)+P5000+P5090,data = BD_train)
+model_8<-lm(Ingtotugarr~poly(Lp, 2)+P5000 + Oc + P6210,data = BD_train)
+model_9<-lm(Ingtotugarr~poly(Lp, 2)+P5000+P5090 + Oc + P6210 ,data = BD_train)
 
 
 #Modelos fuera de muestra
@@ -329,43 +334,50 @@ graf2<-ggplot(mapping = aes(x=1:9, y=vmse1))+
 graf2
 
 
-
-
-
-
-
-
 require("gtsummary") #buen paquete para tablas descriptivas
 require(caret)
 
 BD_Hog_Lim <- clean_names(BD_Hog_Lim)
-levels(BD_Hog_Lim$p5090) <- c("Propia", "Propia Pagando","Arriendo","Usufructo","Sin titulo","Otra") 
+
+
+BD_Hog_Lim$p5090 <- factor((BD_Hog_Lim$p5090), levels=c(1 , 2, 3, 4, 5, 6) , labels = c("Propia", "Propia Pagando","Arriendo","Usufructo","Sin titulo","Otra"))
+BD_Hog_Lim$p6210  <- factor((BD_Hog_Lim$p5090), levels=c(1 , 2, 3 , 4 ,5, 6, 7) , labels = c("Ninguno", "Preescolar","Basica_primaria","Basica_secundaria",
+                                                                                             "Media","Superior","NS_NR"))
+
+
+BD_Hog_Lim$oc <- factor((BD_Hog_Lim$oc), levels=c(0, 1) , labels = c("No", "Si"))
 BD_Hog_Lim$pobre <- factor((BD_Hog_Lim$pobre), levels=c(0, 1) , labels = c("No", "Si"))
 
 
 BD_Hog_Lim <- BD_Hog_Lim %>%
   mutate_at(.vars = c("p5000","p5010"),
             .funs = factor)
+
+
 glimpse(BD_Hog_Lim)
 
 set.seed(10101)
 split1 <- createDataPartition(BD_Hog_Lim$pobre, p = .7)[[1]]
-other <- BD_Hog_Lim[-split1,] %>% drop_na()  
-training <- BD_Hog_Lim[ split1,] %>% drop_na()  
+other <- BD_Hog_Lim[-split1,] 
+training <- BD_Hog_Lim[ split1,] 
 
-
+dim(split1) 
 
 ## Now create the evaluation and test sets
 set.seed(10101)
 split2 <- createDataPartition(other$pobre, p = 1/3)[[1]]
-evaluation <- other[ split2,]%>% drop_na()
-testing <- other[-split2,] %>% drop_na()
+evaluation <- other[ split2,]
+testing <- other[-split2,] 
 
 
 dim(training)
 dim(testing)
-dim(evaluation)
+dim(evaluation) 
 
+
+
+
+## Logit_Caret-------------
 
 ctrl_def <- trainControl(method = "cv",
                          number = 5,
@@ -375,10 +387,53 @@ ctrl_def <- trainControl(method = "cv",
                          savePredictions = T)
 
 
-lambda_grid <- 10^seq(-4, 0.01, length = 200) #en la practica se suele usar una grilla de 200 o 300
-lambda_grid
 
-#lapply(training[c('pobre', 'p5090', 'lp')], unique)
+set.seed(1410)
+mylogit_caret_def <- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = training,
+  method = "glm", #for logit
+  trControl = ctrl_def,
+  family = "binomial",
+  preProcess = c("center", "scale"))
+  
+
+
+mylogit_caret_def
+
+
+##Logit_Two Summary----------
+
+
+
+ctrl_two <- trainControl(method = "cv",
+                         number = 5,
+                         summaryFunction = twoClassSummary,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+set.seed(1410)
+mylogit_caret_two <- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = training,
+  method = "glm", #for logit
+  trControl = ctrl_two,
+  family = "binomial",
+  preProcess = c("center", "scale"))
+  
+
+mylogit_caret_two
+
+## Logit_Lasso_Accuracy------
+ctrl_def <- trainControl(method = "cv",
+                         number = 5,
+                         summaryFunction = defaultSummary,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+
+
+lambda_grid <- 10^seq(-4, 0.01, length = 200) #en la practica se suele usar una grilla de 200 o 300
 
 
 fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
@@ -392,7 +447,7 @@ ctrl<- trainControl(method = "cv",
 
 set.seed(1410)
 mylogit_lasso_acc <- train(
-  pobre ~(lp^2),
+  pobre ~(lp^2)+p5090 + oc,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -406,116 +461,196 @@ mylogit_lasso_acc <- train(
 
 mylogit_lasso_acc
 
+## Logit_Lasso_ROC-------
+set.seed(1410)
+mylogit_lasso_roc <- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = training,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center","scale")
+)
+
+mylogit_lasso_roc 
+## Logit_Lasso_Sensibility--------
+set.seed(1410)
+mylogit_caret_sens <- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = training,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "Sens",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+mylogit_caret_sens 
+## Evaluation_Cutoffs-Overgrown -------
+
+evalResults <- data.frame(Pobre = evaluation$pobre)
+evalResults$Roc <- predict(mylogit_lasso_roc,
+                           newdata = evaluation,
+                           type = "prob")[,1] 
+
+library(pROC)
+rfROC <- roc(evalResults$Pobre, evalResults$Roc, levels = rev(levels(evalResults$Pobre)))
+rfROC 
+
+rfThresh <- coords(rfROC, x = "best", best.method = "closest.topleft")
+rfThresh 
+
+evalResults<-evalResults %>% mutate(hat_def.05=ifelse(evalResults$Roc>0.5,"Si","No"),
+                                    hat_def_rfThresh=ifelse(evalResults$Roc>rfThresh$threshold,"Si","No"))
+
+with(evalResults,table(Pobre,hat_def.05)) 
+
+
+with(evalResults,table(Pobre,hat_def_rfThresh)) 
+
+
+
+###Overgrown##---- 
+
+set.seed(1103)
+upSampledTrain <- upSample(x = training,
+                           y = training$pobre,
+                           ## keep the class variable name the same:
+                           yname = "Pobre")
+dim(training)
+
+dim(upSampledTrain)
+
+
+table(upSampledTrain$Pobre)
+
+
+set.seed(1410)
+mylogit_lasso_upsample <- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = upSampledTrain,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+
+
+mylogit_lasso_upsample 
+
+
+###Downsampling---------
+set.seed(1103)
+downSampledTrain <- downSample(x = training,
+                               y = training$pobre,
+                               ## keep the class variable name the same:
+                               yname = "Pobre")
+dim(training)
+
+dim(downSampledTrain)
+
+table(downSampledTrain$Pobre)
+
+set.seed(1410)
+mylogit_lasso_downsample <- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = downSampledTrain,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+
+mylogit_lasso_downsample
+
+##SMOTE ---- 
+
+require("smotefamily")
+predictors<-c("lp","p5090", "oc")
+head( training[predictors])
+
+smote_output = SMOTE(X = training[predictors],  target = training$pobre)
+oversampled_data = smote_output$data
+table(training$pobre)
+
+table(oversampled_data$class)
+              
+set.seed(1410)
+mylogit_lasso_smote<- train(
+  pobre ~(lp^2)+p5090 + oc,
+  data = oversampled_data,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+
+mylogit_lasso_smote
+
+## Evaluacion -------
+
+testResults <- data.frame(Pobre = testing$pobre)
+testResults$logit<- predict(mylogit_caret,
+                            newdata = testing,
+                            type = "prob")[,1]
+testResults$lasso<- predict(mylogit_lasso_roc,
+                            newdata = testing,
+                            type = "prob")[,1]
+testResults$lasso_thresh<- predict(mylogit_lasso_roc,
+                                   newdata = testing,
+                                   type = "prob")[,1]
+testResults$lasso_upsample<- predict(mylogit_lasso_upsample,
+                                     newdata = testing,
+                                     type = "prob")[,1]
+testResults$mylogit_lasso_downsample<- predict(mylogit_lasso_downsample,
+                                               newdata = testing,
+                                               type = "prob")[,1]
+testResults$mylogit_lasso_smote<- predict(mylogit_lasso_smote,
+                                          newdata = testing,
+                                          type = "prob")[,1] 
+
+
+
+testResults<-testResults %>%
+  mutate(logit=ifelse(logit>0.5,"Si","No"),
+         lasso=ifelse(lasso>0.5,"Si","No"),
+         lasso_thresh=ifelse(lasso_thresh>rfThresh$threshold,"Si","No"),
+         lasso_upsample=ifelse(lasso_upsample>0.5,"Si","No"),
+         mylogit_lasso_downsample=ifelse(mylogit_lasso_downsample>0.5,"Si","No"),
+         mylogit_lasso_smote=ifelse(mylogit_lasso_smote>0.5,"Si","No"),
+  )
+
+with(testResults,table(Pobre,logit))
+
+with(testResults,table(Pobre,lasso)) 
+
+with(testResults,table(Pobre,lasso_thresh)) 
+
+with(testResults,table(Pobre,lasso_upsample)) 
+
+with(testResults,table(Pobre,mylogit_lasso_downsample)) 
+
+with(testResults,table(Pobre,mylogit_lasso_smote))
 
 
 
 
-#Numeral a.V:
-ujs<-c()
-hjs<-c()
-alphas <- c()
-for (j in 1:nrow(BD_test)) {
-  uj <- model_9$residual[j]
-  hj <- lm.influence(model_9)$hat[j]
-  alpha <- uj/(1-hj)
-  alphas <- c(alphas, alpha)
-  ujs <- c(ujs, uj)
-  hjs <- c(hjs, hj)
-}
-#BD para analizar leverage
-BD_Leverage<-cbind(BD_test,alphas)
-y_out_test<-predict(model_9,BD_Leverage)
-y_real_test<-BD_Leverage$LnIng
-ggplot(BD_Leverage, aes(x=1:4052))+
-  xlab("Observaciones")+
-  geom_point(aes(y=y_real_test, color="red"))+
-  ylab("Ingreso con arriendo imputado")+
-  geom_point(aes(y=y_out_test), color="blue")+
-  theme_classic()+
-  ggtitle("Ingreso real vs predicho")+
-  theme(plot.title = element_text(hjust = 0.5))
 
 
 
 
-alpha
-alphas
-ggplot(BD_test, aes(x=alphas, y=LnIng))+
-  geom_point(color="red")+
-  theme_classic()+
-  ggtitle("Leverage Stadistic Modelo 9")+
-  theme(plot.title = element_text(hjust = 0.5))
 
-#Punto 5b. K-fold cross-validation.
-install.packages("caret")
-library(dplyr)
-library(caret)
-#modelos
-model_1CV<-train(Ingtotugarr~.,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="null")
-model_1CV<-train(Ingtotugarr~1,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="null")
-model_2CV<-train(Ingtotugarr~Lp,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_3CV<-train(Ingtotugarr~ Li,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_4CV<-train(Ingtotugarr~Lp+Li,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_5CV<-train(Ingtotugarr~Lp+P5000,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_6CV<-train(Ingtotugarr~Lp+P5090,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_7CV<-train(Ingtotugarr~poly(Lp, 2),
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_8CV<-train(Ingtotugarr~poly(Lp, 2)+P5000,
-                 data =  data_clean_ocu,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_9CV<-train(Ingtotugarr~poly(Lp, 2)+P5000+P5090,
-                 data =  BD_Hog_Train_Lim_Final,
-                 trControl=trainControl(method = "cv",number = 5),
-                 method="lm")
-model_2CV
-model_3CV
-model_4CV
-model_5CV
-model_6CV
-model_7CV
-model_8CV
-model_9CV
 
-#Numeral c. LOOCV
-BD_Hog_Train_Lim_Final$MSE_LOOCV <- 1
-for (i in 1:nrow(BD_Hog_Train_Lim_Final)) {
-  #Establecer BD
-  BD_train_LOOCV<-BD_Hog_Train_Lim_Final[-c(i),]
-  dim(BD_train_LOOCV)
-  BD_test_LOOCV<-BD_Hog_Train_Lim_Final[c(i),]
-  dim(BD_test_LOOCV)
-  #Modelo entrenamiento
-  model_9LOOCV<-lm(LnIng~poly(exp, 2)+sex+age,data = BD_train_LOOCV)
-  #Modelo fuera de muestra
-  BD_test_LOOCV$model_9LOOCV<-predict(model_9LOOCV,newdata = BD_test_LOOCV)
-  #MSE
-  BD_Hog_Train_Lim_Final$MSE_LOOCV[i]<-with(BD_test_LOOCV,mean((LnIng-model_9LOOCV)^2))
-}
-mean(BD_Hog_Train_Lim_Final$MSE_LOOCV)
+
+
 
 
 
