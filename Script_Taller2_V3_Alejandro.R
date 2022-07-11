@@ -571,34 +571,34 @@ mylogit_lasso_downsample
 
 ##SMOTE ---- 
 
-require("smotefamily")
-predictors<-c("lp","p5090", "oc")
-head( training[predictors])
+#require("smotefamily")
+#predictors<-c("lp","p5090", "oc")
+#head( training[predictors])
 
-smote_output = SMOTE(X = training[predictors],  target = training$pobre)
-oversampled_data = smote_output$data
-table(training$pobre)
+#smote_output = SMOTE(X = training[predictors],  target = training$pobre)
+#oversampled_data = smote_output$data
+#table(training$pobre)
 
-table(oversampled_data$class)
+#table(oversampled_data$class)
               
-set.seed(1410)
-mylogit_lasso_smote<- train(
-  pobre ~(lp^2)+p5090 + oc,
-  data = oversampled_data,
-  method = "glmnet",
-  trControl = ctrl,
-  family = "binomial",
-  metric = "ROC",
-  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
-  preProcess = c("center", "scale")
-)
+#set.seed(1410)
+#mylogit_lasso_smote<- train(
+#  pobre ~(lp^2)+p5090 + oc,
+#  data = oversampled_data,
+#  method = "glmnet",
+#  trControl = ctrl,
+#  family = "binomial",
+#  metric = "ROC",
+#  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+#  preProcess = c("center", "scale")
+#)
 
-mylogit_lasso_smote
+#mylogit_lasso_smote
 
 ## Evaluacion -------
 
 testResults <- data.frame(Pobre = testing$pobre)
-testResults$logit<- predict(mylogit_caret,
+testResults$logit<- predict(mylogit_caret_def,
                             newdata = testing,
                             type = "prob")[,1]
 testResults$lasso<- predict(mylogit_lasso_roc,
@@ -613,9 +613,9 @@ testResults$lasso_upsample<- predict(mylogit_lasso_upsample,
 testResults$mylogit_lasso_downsample<- predict(mylogit_lasso_downsample,
                                                newdata = testing,
                                                type = "prob")[,1]
-testResults$mylogit_lasso_smote<- predict(mylogit_lasso_smote,
-                                          newdata = testing,
-                                          type = "prob")[,1] 
+#testResults$mylogit_lasso_smote<- predict(mylogit_lasso_smote,
+#                                          newdata = testing,
+#                                          type = "prob")[,1] 
 
 
 
@@ -625,7 +625,7 @@ testResults<-testResults %>%
          lasso_thresh=ifelse(lasso_thresh>rfThresh$threshold,"Si","No"),
          lasso_upsample=ifelse(lasso_upsample>0.5,"Si","No"),
          mylogit_lasso_downsample=ifelse(mylogit_lasso_downsample>0.5,"Si","No"),
-         mylogit_lasso_smote=ifelse(mylogit_lasso_smote>0.5,"Si","No"),
+         #mylogit_lasso_smote=ifelse(mylogit_lasso_smote>0.5,"Si","No"),
   )
 
 with(testResults,table(Pobre,logit))
@@ -638,10 +638,10 @@ with(testResults,table(Pobre,lasso_upsample))
 
 with(testResults,table(Pobre,mylogit_lasso_downsample)) 
 
-with(testResults,table(Pobre,mylogit_lasso_smote))
+#with(testResults,table(Pobre,mylogit_lasso_smote))
 
 
-
+testResults
 
 
 
