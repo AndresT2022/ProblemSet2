@@ -19,6 +19,7 @@ p_load(scales) # Formato de los ejes en las gráficas
 p_load(ggpubr) # Combinar gráficas
 p_load(knitr) # Tablas dentro de Rmarkdown
 p_load(kableExtra) # Tablas dentro de Rmarkdown
+p_load(glmnet)
 
 #Lectura bases de datos ----------------------------------------------------------------
 
@@ -274,6 +275,7 @@ glimpse(BD_Hog_Lim)
 #Modelos de Regresión -----------------------------------------------
 
 
+
 #Selección muestra de entrenamiento y prueba
 
 id_train <- sample(1:nrow(BD_Hog_Lim),size = 0.7*nrow(BD_Hog_Lim), replace = F)
@@ -291,16 +293,16 @@ dim(BD_train)
 colnames(BD_train)
 dim(BD_test)
 #Modelos entrenamiento
-model_1<-lm(Ingtotugarr~1,data = BD_train) 
-model_2<-lm(Ingtotugarr~Lp,data = BD_train)
-model_3<-lm(Ingtotugarr~ Li,data = BD_train)
-model_4<-lm(Ingtotugarr~Lp+Li,data = BD_train)
-model_5<-lm(Ingtotugarr~Lp+P5000 + Oc + P6210,data = BD_train)
-model_6<-lm(Ingtotugarr~Lp+P5090 + Oc + P6210,data = BD_train)
-model_7<-lm(Ingtotugarr~poly(Lp, 2),data = BD_train)
-model_8<-lm(Ingtotugarr~poly(Lp, 2)+P5000 + Oc + P6210,data = BD_train)
-model_9<-lm(Ingtotugarr~poly(Lp, 2)+P5000+P5090 + Oc + P6210 ,data = BD_train)
-
+model_1<-lm(log(Ingtotugarr+1)~1,data = BD_train) 
+model_2<-lm(log(Ingtotugarr+1)~Lp,data = BD_train)
+model_3<-lm(log(Ingtotugarr+1)~ Li,data = BD_train)
+model_4<-lm(log(Ingtotugarr+1)~Lp+Li,data = BD_train)
+model_5<-lm(log(Ingtotugarr+1)~Lp+P5000 + Oc + P6210,data = BD_train)
+model_6<-lm(log(Ingtotugarr+1)~Lp+P5090 + Oc + P6210,data = BD_train)
+model_7<-lm(log(Ingtotugarr+1)~poly(Lp, 2),data = BD_train)
+model_8<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5000 + Oc + P6210,data = BD_train)
+model_9<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5000+P5090 + Oc + P6210 ,data = BD_train)
+model_10<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5090+P5000*Nper + Oc ,data = BD_train)
 
 #Modelos fuera de muestra
 BD_test$model_1<-predict(model_1,newdata =  BD_test)
@@ -312,19 +314,21 @@ BD_test$model_6<-predict(model_6,newdata = BD_test)
 BD_test$model_7<-predict(model_7,newdata = BD_test)
 BD_test$model_8<-predict(model_8,newdata = BD_test)
 BD_test$model_9<-predict(model_9,newdata = BD_test)
+BD_test$model_10<-predict(model_10,newdata = BD_test)
 #MSE
-mse01<-with(BD_test,mean((Ingtotugarr-model_1)^2))
-mse02<-with(BD_test,mean((Ingtotugarr-model_2)^2))
-mse03<-with(BD_test,mean((Ingtotugarr-model_3)^2))
-mse04<-with(BD_test,mean((Ingtotugarr-model_4)^2))
-mse05<-with(BD_test,mean((Ingtotugarr-model_5)^2))
-mse06<-with(BD_test,mean((Ingtotugarr-model_6)^2))
-mse07<-with(BD_test,mean((Ingtotugarr-model_7)^2))
-mse08<-with(BD_test,mean((Ingtotugarr-model_8)^2))
-mse09<-with(BD_test,mean((Ingtotugarr-model_9)^2))
+mse01<-with(BD_test,mean((log(Ingtotugarr+1)-model_1)^2))
+mse02<-with(BD_test,mean((log(Ingtotugarr+1)-model_2)^2))
+mse03<-with(BD_test,mean((log(Ingtotugarr+1)-model_3)^2))
+mse04<-with(BD_test,mean((log(Ingtotugarr+1)-model_4)^2))
+mse05<-with(BD_test,mean((log(Ingtotugarr+1)-model_5)^2))
+mse06<-with(BD_test,mean((log(Ingtotugarr+1)-model_6)^2))
+mse07<-with(BD_test,mean((log(Ingtotugarr+1)-model_7)^2))
+mse08<-with(BD_test,mean((log(Ingtotugarr+1)-model_8)^2))
+mse09<-with(BD_test,mean((log(Ingtotugarr+1)-model_9)^2))
+mse10<-with(BD_test,mean((log(Ingtotugarr+1)-model_10)^2))
 #Grafica MSE
-vmse1<-c(mse01,mse02,mse03,mse04,mse05,mse06,mse07,mse08,mse09)
-graf2<-ggplot(mapping = aes(x=1:9, y=vmse1))+
+vmse1<-c(mse01,mse02,mse03,mse04,mse05,mse06,mse07,mse08,mse09,mse10)
+graf2<-ggplot(mapping = aes(x=1:10, y=vmse1))+
   geom_line(color="blue")+
   xlab("Modelos")+
   ylab("MSE")+
@@ -341,7 +345,7 @@ BD_Hog_Lim <- clean_names(BD_Hog_Lim)
 
 
 BD_Hog_Lim$p5090 <- factor((BD_Hog_Lim$p5090), levels=c(1 , 2, 3, 4, 5, 6) , labels = c("Propia", "Propia Pagando","Arriendo","Usufructo","Sin titulo","Otra"))
-BD_Hog_Lim$p6210  <- factor((BD_Hog_Lim$p5090), levels=c(1 , 2, 3 , 4 ,5, 6, 7) , labels = c("Ninguno", "Preescolar","Basica_primaria","Basica_secundaria",
+BD_Hog_Lim$p6210  <- factor((BD_Hog_Lim$P6210), levels=c(1 , 2, 3 , 4 ,5, 6, 7) , labels = c("Ninguno", "Preescolar","Basica_primaria","Basica_secundaria",
                                                                                              "Media","Superior","NS_NR"))
 
 
