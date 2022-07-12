@@ -15,7 +15,7 @@ p_load(scales) # Formato de los ejes en las gráficas
 p_load(ggpubr) # Combinar gráficas
 p_load(knitr) # Tablas dentro de Rmarkdown
 p_load(kableExtra) # Tablas dentro de Rmarkdown
-
+p_load(caret, modelsummary, gamlr, class, lmtest, gtsummary)
 #Lectura bases de datos ----------------------------------------------------------------
 
 getwd() #Establezco mi directorio
@@ -240,23 +240,37 @@ dim(BD_Pru_Per_Lim)
 BD_Pru_Hog_Lim<-left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
 dim(BD_Pru_Hog_Lim)
 
+# Tabla descriptiva
+tbl_summary(BD_Ent_Hog_Lim, 
+            by = Pobre, 
+            statistic = list(all_continuous()~""))
+
+# ??---- variable de pobresa en datos de Test -----??#
+
+
 #-------------------------------------------------------------------------------------------------
+   ## ¿las bases están balanceadas?
+prop.table(table(BD_Ent_Hog_Lim$Pobre))
+##------------- KNN -----------------
+
+
+
+#revisar categorias de variables
+
+glimpse(BD_Ent_Hog_Lim)
 
 ## recategorizar variable-
-db = train_hogares %>% 
+BD_Ent_Hog_Lim %>% 
   mutate(Pobre=ifelse(Pobre==1,"pobre (1)","no pobre (0)") %>% as.factor())
 
-str(db)
+glimpse(BD_Ent_Hog_Lim)
 
-## fijar semilla
-set.seed(210422)
+set.seed(10101)
 
-## generar observaciones aleatorias
-test <- sample(x=1:32, size=10)
-
-## reescalar variables (para calcular distancias)
-x <- scale(db[,-9]) 
+x <- scale(BD_Hog_Lim[,-"Pobre"]) ## reescalar variables (para calcular distancias)
 apply(x,2,sd) ## verificar
+
+
 
 ## k-vecinos
 k1 = knn(train=x[-test,], ## base de entrenamiento

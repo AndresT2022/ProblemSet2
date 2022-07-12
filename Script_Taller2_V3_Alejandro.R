@@ -19,8 +19,10 @@ p_load(scales) # Formato de los ejes en las gráficas
 p_load(ggpubr) # Combinar gráficas
 p_load(knitr) # Tablas dentro de Rmarkdown
 p_load(kableExtra) # Tablas dentro de Rmarkdown
-p_load(glmnet)
-
+p_load(glmnet, class)
+p_load(modelsummary, # tidy, msummary
+       gamlr        # cv.gamlr
+       )  
 #Lectura bases de datos ----------------------------------------------------------------
 
 
@@ -302,7 +304,9 @@ model_6<-lm(log(Ingtotugarr+1)~Lp+P5090 + Oc + P6210,data = BD_train)
 model_7<-lm(log(Ingtotugarr+1)~poly(Lp, 2),data = BD_train)
 model_8<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5000 + Oc + P6210,data = BD_train)
 model_9<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5000+P5090 + Oc + P6210 ,data = BD_train)
-model_10<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5090+P5000*Nper + Oc ,data = BD_train)
+model_10<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5090+P5000*Nper + Oc + P6210,data = BD_train)
+model_11<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5090+P5000*Nper + Oc + P6210 + Dominio, data = BD_train)
+
 
 #Modelos fuera de muestra
 BD_test$model_1<-predict(model_1,newdata =  BD_test)
@@ -315,6 +319,8 @@ BD_test$model_7<-predict(model_7,newdata = BD_test)
 BD_test$model_8<-predict(model_8,newdata = BD_test)
 BD_test$model_9<-predict(model_9,newdata = BD_test)
 BD_test$model_10<-predict(model_10,newdata = BD_test)
+BD_test$model_11<-predict(model_11,newdata = BD_test)
+
 #MSE
 mse01<-with(BD_test,mean((log(Ingtotugarr+1)-model_1)^2))
 mse02<-with(BD_test,mean((log(Ingtotugarr+1)-model_2)^2))
@@ -326,20 +332,23 @@ mse07<-with(BD_test,mean((log(Ingtotugarr+1)-model_7)^2))
 mse08<-with(BD_test,mean((log(Ingtotugarr+1)-model_8)^2))
 mse09<-with(BD_test,mean((log(Ingtotugarr+1)-model_9)^2))
 mse10<-with(BD_test,mean((log(Ingtotugarr+1)-model_10)^2))
+mse11<-with(BD_test,mean((log(Ingtotugarr+1)-model_11)^2))
+
+
 #Grafica MSE
-vmse1<-c(mse01,mse02,mse03,mse04,mse05,mse06,mse07,mse08,mse09,mse10)
-graf2<-ggplot(mapping = aes(x=1:10, y=vmse1))+
+vmse1<-c(mse01,mse02,mse03,mse04,mse05,mse06,mse07,mse08,mse09,mse10,mse11)
+graf2<-ggplot(mapping = aes(x=1:11, y=vmse1))+
   geom_line(color="blue")+
   xlab("Modelos")+
   ylab("MSE")+
   ggtitle("Resumen MSE")+
   theme(plot.title = element_text(hjust = 0.5))+
-  scale_x_continuous(breaks = seq(1,9,1))
+  scale_x_continuous(breaks = seq(1,11,1))
 graf2
 
 
-require("gtsummary") #buen paquete para tablas descriptivas
-require(caret)
+#require("gtsummary") #buen paquete para tablas descriptivas
+#require(caret)
 
 BD_Hog_Lim <- clean_names(BD_Hog_Lim)
 
@@ -357,8 +366,56 @@ BD_Hog_Lim <- BD_Hog_Lim %>%
   mutate_at(.vars = c("p5000","p5010"),
             .funs = factor)
 
+# --- balance datos --- #
+prop.table(table(BD_Hog_Lim$pobre))
 
-glimpse(BD_Hog_Lim)
+
+# --- KNN ---- #
+
+BD_copia <- BD_Hog_Lim %>% 
+  mutate(Pobre=ifelse(pobre==1,"pobre (1)","no pobre (0)"))
+
+BD_copia <- BD_copia %>% select(.,lp, p5000, nper, p6210, pobre)
+
+BD_copia$lp <- as.numeric(BD_copia$lp)
+BD_copia$p5000 <- as.numeric(BD_copia$p5000)
+BD_copia$nper <- as.numeric(BD_copia$nper)
+BD_copia$p6210 <- as.numeric(BD_copia$p6210)
+glimpse(BD_copia)
+
+x <- scale(BD_copia[,-5]) ## reescalar variables (para calcular distancias)
+apply(x,2,sd) ## verificar
+
+set.seed(10101)
+
+test <- sample(x=1:164959, size = (.7*164959))
+
+## k-vecinos
+k1 = knn(train=x[-test,], ## base de entrenamiento
+         test=x[test,],   ## base de testeo
+         cl=BD_copia$pobre[-test], ## outcome
+         k=1)        ## vecinos 
+
+k3 = knn(train=x[-test,], ## base de entrenamiento
+         test=x[test,],   ## base de testeo
+         cl=BD_copia$pobre[-test], ## outcome
+         k=3) 
+
+tibble(BD_copia$pobre[test],k1,k3)
+
+## matriz de confusión
+k_1 <- confusionMatrix(data=k1 , 
+                reference=BD_copia$pobre[test], 
+                mode="sens_spec" , 
+                positive="Si")
+
+k_3 <- confusionMatrix(data=k3 , 
+                       reference=BD_copia$pobre[test], 
+                       mode="sens_spec" , 
+                       positive="Si")
+k_3
+
+# --- particion --- 
 
 set.seed(10101)
 split1 <- createDataPartition(BD_Hog_Lim$pobre, p = .7)[[1]]
@@ -394,7 +451,7 @@ ctrl_def <- trainControl(method = "cv",
 
 set.seed(1410)
 mylogit_caret_def <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glm", #for logit
   trControl = ctrl_def,
@@ -418,7 +475,7 @@ ctrl_two <- trainControl(method = "cv",
                          savePredictions = T)
 set.seed(1410)
 mylogit_caret_two <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glm", #for logit
   trControl = ctrl_two,
@@ -451,7 +508,7 @@ ctrl<- trainControl(method = "cv",
 
 set.seed(1410)
 mylogit_lasso_acc <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -468,7 +525,7 @@ mylogit_lasso_acc
 ## Logit_Lasso_ROC-------
 set.seed(1410)
 mylogit_lasso_roc <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -479,10 +536,15 @@ mylogit_lasso_roc <- train(
 )
 
 mylogit_lasso_roc 
+
+plot(mylogit_lasso_roc, main = "ROC curve", colorize = FALSE, col="red")
+#plot(roc mylda,add=TRUE, colorize = FALSE, col="blue")
+#abline(a = 0, b = 1)
+
 ## Logit_Lasso_Sensibility--------
 set.seed(1410)
 mylogit_caret_sens <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -533,7 +595,7 @@ table(upSampledTrain$Pobre)
 
 set.seed(1410)
 mylogit_lasso_upsample <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
   data = upSampledTrain,
   method = "glmnet",
   trControl = ctrl,
@@ -561,7 +623,7 @@ table(downSampledTrain$Pobre)
 
 set.seed(1410)
 mylogit_lasso_downsample <- train(
-  pobre ~(lp^2)+p5090 + oc,
+  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
   data = downSampledTrain,
   method = "glmnet",
   trControl = ctrl,
@@ -645,7 +707,7 @@ with(testResults,table(Pobre,mylogit_lasso_downsample))
 #with(testResults,table(Pobre,mylogit_lasso_smote))
 
 
-testResults
+
 
 
 
