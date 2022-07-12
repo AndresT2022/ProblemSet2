@@ -19,10 +19,11 @@ p_load(scales) # Formato de los ejes en las gráficas
 p_load(ggpubr) # Combinar gráficas
 p_load(knitr) # Tablas dentro de Rmarkdown
 p_load(kableExtra) # Tablas dentro de Rmarkdown
-p_load(glmnet, class)
+p_load(glmnet, class, ROCR, MASS)
 p_load(modelsummary, # tidy, msummary
        gamlr        # cv.gamlr
        )  
+predict <- stats::predict
 #Lectura bases de datos ----------------------------------------------------------------
 
 
@@ -276,8 +277,6 @@ BD_Hog_Lim <- bind_rows(BD_Pru_Hog_Lim,BD_Ent_Hog_Lim) %>% drop_na()
 glimpse(BD_Hog_Lim)
 #Modelos de Regresión -----------------------------------------------
 
-
-
 #Selección muestra de entrenamiento y prueba
 
 id_train <- sample(1:nrow(BD_Hog_Lim),size = 0.7*nrow(BD_Hog_Lim), replace = F)
@@ -298,14 +297,16 @@ dim(BD_test)
 model_1<-lm(log(Ingtotugarr+1)~1,data = BD_train) 
 model_2<-lm(log(Ingtotugarr+1)~Lp,data = BD_train)
 model_3<-lm(log(Ingtotugarr+1)~ Li,data = BD_train)
-model_4<-lm(log(Ingtotugarr+1)~Lp+Li,data = BD_train)
-model_5<-lm(log(Ingtotugarr+1)~Lp+P5000 + Oc + P6210,data = BD_train)
-model_6<-lm(log(Ingtotugarr+1)~Lp+P5090 + Oc + P6210,data = BD_train)
+model_4<-lm(log(Ingtotugarr+1)~Li,data = BD_train)
+model_5<-lm(log(Ingtotugarr+1)~P5000 + Oc + P6210,data = BD_train)
+model_6<-lm(log(Ingtotugarr+1)~P5090 + Oc + P6210,data = BD_train)
 model_7<-lm(log(Ingtotugarr+1)~poly(Lp, 2),data = BD_train)
-model_8<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5000 + Oc + P6210,data = BD_train)
-model_9<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5000+P5090 + Oc + P6210 ,data = BD_train)
-model_10<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5090+P5000*Nper + Oc + P6210,data = BD_train)
-model_11<-lm(log(Ingtotugarr+1)~poly(Lp, 2)+P5090+P5000*Nper + Oc + P6210 + Dominio, data = BD_train)
+model_8<-lm(log(Ingtotugarr+1)~P5000 + Oc + P6210,data = BD_train)
+model_9<-lm(log(Ingtotugarr+1)~P5000+P5090 + Oc + P6210 ,data = BD_train)
+model_10<-lm(log(Ingtotugarr+1)~P5090+P5000*Nper + Oc + P6210,data = BD_train)
+model_11<-lm(log(Ingtotugarr+1)~P5090+P5000*Nper + Oc + P6210 + Dominio, data = BD_train)
+
+mylm <- lm(Pobre~P5090+P5000+Nper + Oc + P6210 + Dominio, data = BD_train)
 
 
 #Modelos fuera de muestra
@@ -413,6 +414,7 @@ k_3 <- confusionMatrix(data=k3 ,
                        reference=BD_copia$pobre[test], 
                        mode="sens_spec" , 
                        positive="Si")
+k_1
 k_3
 
 # --- particion --- 
@@ -435,7 +437,122 @@ dim(training)
 dim(testing)
 dim(evaluation) 
 
+prop.table(table(training$pobre))
+prop.table(table(testing$pobre))
+prop.table(table(evaluation$pobre))
 
+##Logit 1
+
+model <- as.formula("pobre ~ factor(p5090)+ nper + oc + p6210 + factor(dominio)")
+
+## estimations
+glm_logit <- glm(model , family=binomial(link="logit") , data=training)
+
+## predict pobre
+testing$predict_logit <- predict(glm_logit , testing , type="response")
+
+## definir la regla
+ggplot(data=testing , mapping = aes(pobre , predict_logit)) + 
+  geom_boxplot(aes(fill=pobre)) + theme_test()
+
+testing <- testing %>% 
+  mutate(p_logit=ifelse(predict_logit>0.79,1,0) %>% 
+           factor(.,levels=c(1,0),labels=c("Si","No")))
+
+## ROC para logit1
+pred <- prediction(testing$predict_logit, testing$pobre)
+roc_ROCR <- performance(pred,"tpr","fpr")
+plot(roc_ROCR, main = "ROC curve", colorize = T)
+abline(a = 0, b = 1)
+
+##area bajo la curva AUC
+auc_roc = performance(pred, measure = "auc")
+auc_roc@y.values[[1]]
+
+## confusion mnatrix
+confusionMatrix(data=testing$p_logit, 
+                reference=testing$pobre , 
+                mode="sens_spec" , positive="Si")
+
+summary(glm_logit, type="text")
+
+#modelo logit 2
+#model1 <- as.formula("pobre ~ factor(p5000)+ nper + oc + p6210 + factor(dominio)")
+## estimations
+#glm_logit1 <- glm(model1 , family=binomial(link="logit") , data=training)
+## predict pobre
+#testing$predict_logit1 <- predict(glm_logit1 , testing , type="response")
+## definir la regla
+#ggplot(data=testing , mapping = aes(pobre , predict_logit1)) + 
+#  geom_boxplot(aes(fill=pobre)) + theme_test()
+
+#testing1 <- testing %>% 
+#  mutate(p_logit1=ifelse(predict_logit1>0.79,1,0) %>% 
+#           factor(.,levels=c(1,0),labels=c("Si","No")))
+
+## ROC para logit2
+#pred1 <- prediction(testing1$predict_logit1, testing$pobre)
+#roc_ROCR1 <- performance(pred1,"tpr","fpr")
+#plot(roc_ROCR1, main = "ROC curve1", colorize = T)
+#abline(a = 0, b = 1)
+
+##area bajo la curva AUC
+#auc_roc1 = performance(pred1, measure = "auc")
+#auc_roc1@y.values[[1]]
+
+## confusion mnatrix logit2
+#confusionMatrix(data=testing1$p_logit1, 
+#                reference=testing$pobre , 
+#                mode="sens_spec" , positive="Si")
+
+#summary(glm_logit, type="text")
+
+## logit 3
+#model2 <- as.formula("pobre ~ factor(p5000)+ p5000:nper + oc + p6210 + factor(dominio)")
+## estimations
+#glm_logit2 <- glm(model2 , family=binomial(link="logit") , data=training)
+## predict pobre
+#testing$predict_logit2 <- predict(glm_logit2 , testing , type="response")
+## definir la regla
+#ggplot(data=testing , mapping = aes(pobre , predict_logit2)) + 
+#  geom_boxplot(aes(fill=pobre)) + theme_test()
+
+#testing2 <- testing %>% 
+#  mutate(p_logit2=ifelse(predict_logit2>0.79,1,0) %>% 
+#           factor(.,levels=c(1,0),labels=c("Si","No")))
+## ROC para logit3
+#pred2 <- prediction(testing2$predict_logit2, testing$pobre)
+#roc_ROCR2 <- performance(pred1,"tpr","fpr")
+#plot(roc_ROCR2, main = "ROC curve2", colorize = T)
+#abline(a = 0, b = 1)
+##area bajo la curva AUC
+#auc_roc2 = performance(pred1, measure = "auc")
+#auc_roc2@y.values[[1]]
+## confusion mnatrix logit2
+##confusionMatrix(data=testing2$p_logit2, 
+#                reference=testing$pobre , 
+#                mode="sens_spec" , positive="Si")
+
+##LDA
+mylda <- lda(model, data = training)
+mylda_pred<-predict(mylda,testing)
+names(mylda_pred)
+
+posteriors<-data.frame(mylda_pred$posterior)
+posteriors$hand<-f1*p1/(f1*p1+f0*(1-p1))
+head(posteriors)
+
+mylda
+
+phat_mylda<- predict(mylda, testing, type="response")
+pred_mylda <- prediction(phat_mylda$posterior[,2], testing$pobre)
+roc_mylda <- performance(pred_mylda,"tpr","fpr")
+plot(roc_mylda, main = "ROC curve LDA", colorize = T)
+abline(a = 0, b = 1)
+#combinacion logit LDA
+plot(roc_ROCR, main = "Logit y LDA", colorize = FALSE, col="red")
+plot(roc_mylda,add=TRUE, colorize = FALSE, col="blue")
+abline(a = 0, b = 1)
 
 
 ## Logit_Caret-------------
@@ -449,18 +566,21 @@ ctrl_def <- trainControl(method = "cv",
 
 
 
-set.seed(1410)
-mylogit_caret_def <- train(
-  pobre ~p5090+nper + oc + p6210 + dominio,
-  data = training,
-  method = "glm", #for logit
-  trControl = ctrl_def,
-  family = "binomial",
-  preProcess = c("center", "scale"))
+set.seed(10101)
+mylogit_caret_def <- train(model,
+                           data = training,
+                           method = "glm", #for logit
+                           trControl = ctrl_def,
+                           family = "binomial",
+                           preProcess = c("center", "scale"))
   
 
 
-mylogit_caret_def
+
+
+summary(mylogit_caret_def, type="text")
+
+
 
 
 ##Logit_Two Summary----------
@@ -475,7 +595,7 @@ ctrl_two <- trainControl(method = "cv",
                          savePredictions = T)
 set.seed(1410)
 mylogit_caret_two <- train(
-  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
+  pobre ~p5090 + nper + oc + p6210 + dominio,
   data = training,
   method = "glm", #for logit
   trControl = ctrl_two,
@@ -484,6 +604,7 @@ mylogit_caret_two <- train(
   
 
 mylogit_caret_two
+
 
 ## Logit_Lasso_Accuracy------
 ctrl_def <- trainControl(method = "cv",
@@ -508,7 +629,7 @@ ctrl<- trainControl(method = "cv",
 
 set.seed(1410)
 mylogit_lasso_acc <- train(
-  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
+  pobre ~p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -518,14 +639,17 @@ mylogit_lasso_acc <- train(
   preProcess = c("center", "scale"))
   
 
-
+pred <- prediction(testing$predict_logit, test$Default)
+roc_ROCR <- performance(pred,"tpr","fpr")
+plot(roc_ROCR, main = "ROC curve", colorize = T)
+abline(a = 0, b = 1)
 
 mylogit_lasso_acc
 
 ## Logit_Lasso_ROC-------
 set.seed(1410)
 mylogit_lasso_roc <- train(
-  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
+  pobre ~p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -537,14 +661,11 @@ mylogit_lasso_roc <- train(
 
 mylogit_lasso_roc 
 
-plot(mylogit_lasso_roc, main = "ROC curve", colorize = FALSE, col="red")
-#plot(roc mylda,add=TRUE, colorize = FALSE, col="blue")
-#abline(a = 0, b = 1)
 
 ## Logit_Lasso_Sensibility--------
 set.seed(1410)
 mylogit_caret_sens <- train(
-  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
+  pobre ~p5090+nper + oc + p6210 + dominio,
   data = training,
   method = "glmnet",
   trControl = ctrl,
@@ -595,7 +716,7 @@ table(upSampledTrain$Pobre)
 
 set.seed(1410)
 mylogit_lasso_upsample <- train(
-  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
+  pobre ~p5090+nper + oc + p6210 + dominio,
   data = upSampledTrain,
   method = "glmnet",
   trControl = ctrl,
@@ -623,7 +744,7 @@ table(downSampledTrain$Pobre)
 
 set.seed(1410)
 mylogit_lasso_downsample <- train(
-  pobre ~(lp^2)+p5090+nper + oc + p6210 + dominio,
+  pobre ~p5090+nper + oc + p6210 + dominio,
   data = downSampledTrain,
   method = "glmnet",
   trControl = ctrl,
@@ -649,7 +770,7 @@ mylogit_lasso_downsample
               
 #set.seed(1410)
 #mylogit_lasso_smote<- train(
-#  pobre ~(lp^2)+p5090 + oc,
+#  pobre ~p5090 + oc,
 #  data = oversampled_data,
 #  method = "glmnet",
 #  trControl = ctrl,
