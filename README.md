@@ -1,29 +1,17 @@
-# ProblemSet2
+ProblemSet2 - Grupo 2
 
-#1Introducción
+Introducción
 
-#1.1Descripcion (Andres)
-#breve de lo que estamos haciendo
-#Tablas descripcion descriptivas 
+El propósito de este trabajo es construir un modelo predictivo de la pobreza en los hogares colombianos en base a la GEIH de 2018, para ello, se emplearon dos formas de predecir la pobreza, el primero a nivel de clasificación, pobre o no pobre mediante un modelo logit, y el segundo utilizando la predicción de los ingresos de los hogares y el umbral de pobreza, se determinó la clasificación de pobre y no pobre.
 
-#1.2Data (Andres)
-#parla de limpieza de datos
-#Teoria de porque dejamos las variables que usamos
-#teoria que respalda eso
-#Tabla resumen vez pasada Strargazer
-#Graficas variables interesantes. Ingresos con linea pobreza
-## Grafica dispersion de datos INgresos, ocupacion, controles
-##Histogra de pobres y no pobres
+Datos
 
-#1.3 Modelos y resultados
+Respecto a las bases de datos, inicialmente fueron suministradas 4 bases de datos, una de entrenamiento a nivel hogar y una a nivel individual, y una de pruebas a nivel hogar y una a nivel individual.Luego de limpiar las bases de datos (ver apéndice), se obtuvieron la mayor cantidad de variables posibles sin missing values, se unió la información individual a las bases de datos hogares. Es importante mencionar que, en la base de datos de individuos, se tomó como referencia las observaciones del jefe de hogar como representación del hogar, y así utilizar esta información para unirla con la base de datos de hogar.
 
-#1.3.1 Classification Models. (Ignacio)
-#crear logit
-#probar con ROC, AUC, pruebas de sensibilidad
+Desarrollo
 
-#1.3.2 Income regression Models (Alejandro)
-#pol(2) probar con todas las variables
-#elastinet para reducir variables (lasso)
+Se utilizan las distintas metodologías de clasificación siguiendo los pasos que permitan evaluar estas muestras en base a la categorización de las distintas variables para observar efectos de control sobre variables que no son lineales o numéricas. Los resultados nos muestran que el mejor modelo está dado por la metodología de Logit.
 
-1.4 Conclusiones
+Conclusión
 
+Con la modelación se puede concluir que las mediciones del DANE cumplen su propósito de dotar de una base para logar. Una predicción de la situación de pobreza, al analizar por ingreso se puede comprobar que las variables que lo explican en nuestro caso, permiten también una clasificación acorde a lo que indica la proporción inicial de 20% de personas clasificadas como pobres. Sin embargo, también es preciso señalar que se encontró un riesgo de error tipo II, es decir clasificar personas no pobres como pobres. Inferimos que probablemente falta alguna variable más robusta de control que se encuentran dentro de los errores estocásticos.
