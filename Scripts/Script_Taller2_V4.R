@@ -24,6 +24,7 @@ p_load(modelsummary, # tidy, msummary
        gamlr        # cv.gamlr
        )  
 predict <- stats::predict
+select <- dplyr::select
 #Lectura bases de datos ----------------------------------------------------------------
 
 
@@ -371,7 +372,7 @@ BD_Hog_Lim <- BD_Hog_Lim %>%
 prop.table(table(BD_Hog_Lim$pobre))
 
 
-# --- KNN ---- #
+# --- KNN ---- 
 
 BD_copia <- BD_Hog_Lim %>% 
   mutate(Pobre=ifelse(pobre==1,"pobre (1)","no pobre (0)"))
@@ -417,7 +418,7 @@ k_3 <- confusionMatrix(data=k3 ,
 k_1
 k_3
 
-# --- particion --- 
+## --- Particion --- 
 
 set.seed(10101)
 split1 <- createDataPartition(BD_Hog_Lim$pobre, p = .7)[[1]]
@@ -441,34 +442,27 @@ prop.table(table(training$pobre))
 prop.table(table(testing$pobre))
 prop.table(table(evaluation$pobre))
 
-##Logit 1
-
+##Logit 1---
 model <- as.formula("pobre ~ factor(p5090)+ nper + oc + p6210 + factor(dominio)")
-
 ## estimations
 glm_logit <- glm(model , family=binomial(link="logit") , data=training)
-
 ## predict pobre
 testing$predict_logit <- predict(glm_logit , testing , type="response")
-
 ## definir la regla
 ggplot(data=testing , mapping = aes(pobre , predict_logit)) + 
   geom_boxplot(aes(fill=pobre)) + theme_test()
 
 testing <- testing %>% 
-  mutate(p_logit=ifelse(predict_logit>0.79,1,0) %>% 
+  mutate(p_logit=ifelse(predict_logit>0.35,1,0) %>% 
            factor(.,levels=c(1,0),labels=c("Si","No")))
-
 ## ROC para logit1
 pred <- prediction(testing$predict_logit, testing$pobre)
 roc_ROCR <- performance(pred,"tpr","fpr")
 plot(roc_ROCR, main = "ROC curve", colorize = T)
 abline(a = 0, b = 1)
-
 ##area bajo la curva AUC
 auc_roc = performance(pred, measure = "auc")
 auc_roc@y.values[[1]]
-
 ## confusion mnatrix
 confusionMatrix(data=testing$p_logit, 
                 reference=testing$pobre , 
@@ -476,62 +470,7 @@ confusionMatrix(data=testing$p_logit,
 
 summary(glm_logit, type="text")
 
-#modelo logit 2
-#model1 <- as.formula("pobre ~ factor(p5000)+ nper + oc + p6210 + factor(dominio)")
-## estimations
-#glm_logit1 <- glm(model1 , family=binomial(link="logit") , data=training)
-## predict pobre
-#testing$predict_logit1 <- predict(glm_logit1 , testing , type="response")
-## definir la regla
-#ggplot(data=testing , mapping = aes(pobre , predict_logit1)) + 
-#  geom_boxplot(aes(fill=pobre)) + theme_test()
 
-#testing1 <- testing %>% 
-#  mutate(p_logit1=ifelse(predict_logit1>0.79,1,0) %>% 
-#           factor(.,levels=c(1,0),labels=c("Si","No")))
-
-## ROC para logit2
-#pred1 <- prediction(testing1$predict_logit1, testing$pobre)
-#roc_ROCR1 <- performance(pred1,"tpr","fpr")
-#plot(roc_ROCR1, main = "ROC curve1", colorize = T)
-#abline(a = 0, b = 1)
-
-##area bajo la curva AUC
-#auc_roc1 = performance(pred1, measure = "auc")
-#auc_roc1@y.values[[1]]
-
-## confusion mnatrix logit2
-#confusionMatrix(data=testing1$p_logit1, 
-#                reference=testing$pobre , 
-#                mode="sens_spec" , positive="Si")
-
-#summary(glm_logit, type="text")
-
-## logit 3
-#model2 <- as.formula("pobre ~ factor(p5000)+ p5000:nper + oc + p6210 + factor(dominio)")
-## estimations
-#glm_logit2 <- glm(model2 , family=binomial(link="logit") , data=training)
-## predict pobre
-#testing$predict_logit2 <- predict(glm_logit2 , testing , type="response")
-## definir la regla
-#ggplot(data=testing , mapping = aes(pobre , predict_logit2)) + 
-#  geom_boxplot(aes(fill=pobre)) + theme_test()
-
-#testing2 <- testing %>% 
-#  mutate(p_logit2=ifelse(predict_logit2>0.79,1,0) %>% 
-#           factor(.,levels=c(1,0),labels=c("Si","No")))
-## ROC para logit3
-#pred2 <- prediction(testing2$predict_logit2, testing$pobre)
-#roc_ROCR2 <- performance(pred1,"tpr","fpr")
-#plot(roc_ROCR2, main = "ROC curve2", colorize = T)
-#abline(a = 0, b = 1)
-##area bajo la curva AUC
-#auc_roc2 = performance(pred1, measure = "auc")
-#auc_roc2@y.values[[1]]
-## confusion mnatrix logit2
-##confusionMatrix(data=testing2$p_logit2, 
-#                reference=testing$pobre , 
-#                mode="sens_spec" , positive="Si")
 
 ##LDA
 mylda <- lda(model, data = training)
@@ -553,6 +492,9 @@ abline(a = 0, b = 1)
 plot(roc_ROCR, main = "Logit y LDA", colorize = FALSE, col="red")
 plot(roc_mylda,add=TRUE, colorize = FALSE, col="blue")
 abline(a = 0, b = 1)
+
+auc_lda = performance(pred_mylda, measure = "auc")
+auc_lda@y.values[[1]]
 
 
 ## Logit_Caret-------------
@@ -828,18 +770,20 @@ with(testResults,table(Pobre,mylogit_lasso_downsample))
 #with(testResults,table(Pobre,mylogit_lasso_smote))
 
 
+## Submit-------
+
+base_test_final <- BD_Hog_Lim 
+
+base_test_final$predictionclassification <- predict(glm_logit, base_test_final, type="response")
+base_test_final$predictionfinal <- predict(mylogit_caret_def, base_test_final, type="raw")
+
+base_test_final <- base_test_final %>% mutate(
+  Pobre_Clasificacion=ifelse(predictionclassification>=0.79,1,0)) 
+
+base_test_final <- base_test_final %>%  mutate(
+  Pobre_Ingreso=ifelse(base_test_final$predictionfinal=="Si",1,0))
 
 
+submit =  select(base_test_final,"id","Pobre_Clasificacion","Pobre_Ingreso")
 
-
-
-
-
-
-
-
-
-
-
-
-
+write.csv(submit,"predicciones_Garcia_Serrano_Torres_5.csv", row.names = FALSE)
