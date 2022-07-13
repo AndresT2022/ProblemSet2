@@ -1,0 +1,789 @@
+rm(list=ls()) ## Limpiar el entorno de trabajo
+getwd() #Establezco mi directorio
+#Librerias-------------------------------------------------------------------------------
+library(tidyverse)
+#install.packages("caret")
+library(dplyr)
+library(caret)
+
+require(pacman)
+require(dplyr)
+p_load(diffdf,gtsummary, janitor)
+p_load(rio) # Librería para importar datos 
+p_load(tidyverse) # Librería para limpiar datos
+p_load(e1071) # Tiene la función para calcular skewness
+p_load(EnvStats) # Transformación Box-Cox
+p_load(tidymodels) # Modelos ML
+p_load(ggplot2) # Librería para visualizar datos
+p_load(scales) # Formato de los ejes en las gráficas
+p_load(ggpubr) # Combinar gráficas
+p_load(knitr) # Tablas dentro de Rmarkdown
+p_load(kableExtra) # Tablas dentro de Rmarkdown
+p_load(glmnet, class, ROCR, MASS)
+p_load(modelsummary, # tidy, msummary
+       gamlr        # cv.gamlr
+       )  
+predict <- stats::predict
+select <- dplyr::select
+#Lectura bases de datos ----------------------------------------------------------------
+
+
+BD_Pru_Hog<-readRDS("test_hogares.Rds")
+BD_Pru_Per<-readRDS("test_personas.Rds")
+BD_Ent_Hog<-readRDS("train_hogares.Rds")
+BD_Ent_Per<-readRDS("train_personas.Rds")
+
+dim(BD_Pru_Hog)
+dim(BD_Ent_Hog)
+dim(BD_Pru_Per)
+dim(BD_Ent_Per)
+
+
+
+#Limpieza de datos ---------------------------------------------------------------------
+
+#1. BD_Pru_Hog
+
+#borrar variables q no se consideran útiles
+BD_Pru_Hog_Lim<-BD_Pru_Hog %>% 
+  select(-"Depto",-"P5100",-"P5130",-"P5140")
+
+#Volver variables categoricas
+BD_Pru_Hog_Lim <- BD_Pru_Hog_Lim %>%
+  mutate_at(.vars = c("Clase","Dominio","P5090"),
+            .funs = factor)
+
+#Na´s
+
+cantidad_na <- sapply(BD_Pru_Hog_Lim, function(x) sum(is.na(x)))
+cantidad_na <- data.frame(cantidad_na)
+porcentaje_na <- cantidad_na/nrow(BD_Pru_Hog_Lim)
+porcentaje_na <- arrange(porcentaje_na, desc(cantidad_na)) # Ordenamos de mayor a menor
+porcentaje_na <- rownames_to_column(porcentaje_na, "variable")# Convertierte el nombre de la fila en columna
+
+#2. BD_Ent_Hog
+
+#borrar variables q no se consideran útiles
+BD_Ent_Hog_Lim<-BD_Ent_Hog %>% 
+  select(-"Depto",-"P5100",-"P5130",-"P5140")
+
+#Volver variables categoricas
+BD_Ent_Hog_Lim <- BD_Ent_Hog_Lim %>%
+  mutate_at(.vars = c("Clase","Dominio","P5090","Pobre","Indigente"),
+            .funs = factor)
+
+#Na´s
+cantidad_na <- sapply(BD_Ent_Hog_Lim, function(x) sum(is.na(x)))
+cantidad_na <- data.frame(cantidad_na)
+porcentaje_na <- cantidad_na/nrow(BD_Ent_Hog_Lim)
+porcentaje_na <- arrange(porcentaje_na, desc(cantidad_na)) # Ordenamos de mayor a menor
+porcentaje_na <- rownames_to_column(porcentaje_na, "variable")# Convertierte el nombre de la fila en columna
+
+#3. BD_Pru_Per
+
+#borrar variables q no se consideran útiles
+BD_Pru_Per_Lim<-BD_Pru_Per %>% 
+  select(-"P6426",-"P6510",-"P6545",-"P6580",-"P6585s1",-"P6585s2",-"P6585s3",
+         -"P6585s4",-"P6600",-"P6610",-"P6630s1",-"P6630s2",-"P6630s3",-"P6630s4",
+         -"P6630s6",-"P6870",-"P7045",-"P7050",-"P7110",-"P7120",-"P7150",
+         -"P7160",-"P7350",-"P7500s2",-"P7500s3",-"P7510s1",-"P7510s2",
+         -"P7510s3",-"P7510s5",-"P7510s6",-"P7510s7",-"Fex_c",-"Depto",-"Fex_dpto",
+         -"P7310",-"P6590",-"P6620",-"P7472",-"P7422",-"P6920",-"Oficio",-"P6430",
+         -"P6800",-"P7040",-"P7090",-"P6100"
+  )
+
+#convierto na en ceros de Pet, Oc, Des, Ina
+BD_Pru_Per_Lim <- mutate_at(BD_Pru_Per_Lim, c("Pet","Oc","Des","Ina"), ~replace(., is.na(.), 0))
+
+##Asignar NA´s a cat 9
+BD_Pru_Per_Lim$P6090 <-ifelse(is.na(BD_Pru_Per_Lim$P6090)==T,  9,BD_Pru_Per_Lim$P6090)
+
+#borrar variable de grado - P6210s1, dado que ya tenemos escolaridad en P6210
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% select(-"P6210s1")
+
+#borrar variable de en que ocupo tiempo semana antr - P6240
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% select(-"P6240")
+
+#Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495), 
+
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(is.na(P7495)==F)   ##Borrar NA´s
+
+#Durante los últimos doce meses, ¿recibió dinero de otros hogares,
+#personas o instituciones no gubernamentales; dinero por intereses,
+#dividendos, utilidades o por cesantias? (P7505)                          
+
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(is.na(P7505)==F)   ##Borrar NA´s
+
+#P6210 asigno Na´s a cat 9
+BD_Pru_Per_Lim$P6210 <-ifelse(is.na(BD_Pru_Per_Lim$P6210)==T,  9,BD_Pru_Per_Lim$P6210)
+
+#Volver variables categoricas
+BD_Pru_Per_Lim <- BD_Pru_Per_Lim %>%
+  mutate_at(.vars = c("Clase","Dominio","Pet","Oc","Des","Ina","P6020","P6040","P6050",
+                      "P6090","P6210"
+                      ,"P7495","P7505"),
+            .funs = factor)
+
+#Na´s
+cantidad_na <- sapply(BD_Pru_Per_Lim, function(x) sum(is.na(x)))
+cantidad_na <- data.frame(cantidad_na)
+porcentaje_na <- cantidad_na/nrow(BD_Pru_Per_Lim)
+porcentaje_na <- arrange(porcentaje_na, desc(cantidad_na)) # Ordenamos de mayor a menor
+porcentaje_na <- rownames_to_column(porcentaje_na, "variable")# Convertierte el nombre de la fila en columna
+write.csv(porcentaje_na, file="CantidadNa_BD_Pru_Per_LimV2.csv", row.names = FALSE)
+
+#4. BD_Ent_Per
+
+#borrar variables q no se consideran útiles
+BD_Ent_Per_Lim<-BD_Ent_Per %>% 
+  select(-"P6426",-"P6430",-"P6510",-"P6545",-"P6580",-"P6585s1",-"P6585s2",-"P6585s3",
+         -"P6585s4",-"P6600",-"P6610",-"P6620",-"P6630s1",-"P6630s2",-"P6630s3",-"P6630s4",
+         -"P6630s6",-"P6870",-"P7040",-"P7045",-"P7050",-"P7090",-"P7110",-"P7120",-"P7150",
+         -"P7160",-"P7310",-"P7350",-"P7422",-"P7500s2",-"P7500s3",-"P7510s1",-"P7510s2",
+         -"P7510s3",-"P7510s5",-"P7510s6",-"P7510s7",-"Fex_c",-"Depto",-"Fex_dpto",
+         -"Estrato1",-"P6500",-"P6510s1",-"P6510s2",-"P6545s1",-"P6545s2",-"P6580s1",
+         -"P6580s2",-"P6585s1a1",-"P6585s1a2",-"P6585s2a1",-"P6585s2a2",-"P6585s3a1"
+         ,-"P6585s3a2",-"P6585s4a1",-"P6585s4a2",-"P6590s1",-"P6600s1",-"P6610s1",
+         -"P6620s1",-"P6630s1a1",-"P6630s2a1",-"P6630s3a1",-"P6630s4a1",-"P6630s6a1"
+         ,-"P6750",-"P6760",-"P550",-"P7070",-"P7140s1",-"P7140s2",-"P7422s1",
+         -"P7472s1",-"P7500s1",-"P7500s1a1",-"P7500s2a1",-"P7500s3a1",-"P7510s1a1"
+         ,-"P7510s2a1",-"P7510s3a1",-"P7510s5a1",-"P7510s6a1",-"P7510s7a1",
+         -"Impa",-"Isa",-"Ie",-"Imdi",-"Iof1",-"Iof2",-"Iof3h",-"Iof3i",-"Iof6",-"Cclasnr2",
+         -"Cclasnr3",-"Cclasnr4",-"Cclasnr5",-"Cclasnr6",-"Cclasnr7",-"Cclasnr8",-"Cclasnr11",
+         -"Impaes",-"Isaes",-"Iees",-"Imdies",-"Iof1es",-"Iof2es",-"Iof3hes",-"Iof3ies",
+         -"Iof6es",-"Ingtotob",-"Ingtotes",
+         -"P6590",-"P7472",-"P6920",-"Oficio",-"P6800",-"P6210s1",-"P6240",-"P6100")
+
+#convierto na en ceros de Pet, Oc, Des, Ina
+BD_Ent_Per_Lim <- mutate_at(BD_Ent_Per_Lim, c("Pet","Oc","Des","Ina"), ~replace(., is.na(.), 0))
+
+#Variable ¿recibió pagos por concepto de arriendos y/o pensiones? (P7495)
+
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(is.na(P7495)==F)   ##Borrar NA´s
+
+#Durante los últimos doce meses, ¿recibió dinero de otros hogares,
+#personas o instituciones no gubernamentales; dinero por intereses,
+#dividendos, utilidades o por cesantias? (P7505)                    
+
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(is.na(P7505)==F)   ##Borrar NA´s
+
+##Asignar NA´s a cat 9
+BD_Ent_Per_Lim$P6090 <-ifelse(is.na(BD_Ent_Per_Lim$P6090)==T,  9,BD_Ent_Per_Lim$P6090)
+
+#Volver variables categoricas
+BD_Ent_Per_Lim <- BD_Ent_Per_Lim %>%
+  mutate_at(.vars = c("Clase","Dominio","P6020","P6050","P6090",
+                      "P7495","P6210","P7505","Pet","Oc","Des","Ina"),
+            .funs = factor)
+
+#Na´s
+cantidad_na <- sapply(BD_Ent_Per_Lim, function(x) sum(is.na(x)))
+cantidad_na <- data.frame(cantidad_na)
+porcentaje_na <- cantidad_na/nrow(BD_Ent_Per_Lim)
+porcentaje_na <- arrange(porcentaje_na, desc(cantidad_na)) # Ordenamos de mayor a menor
+porcentaje_na <- rownames_to_column(porcentaje_na, "variable")# Convertierte el nombre de la fila en columna
+write.csv(porcentaje_na, file="CantidadNa_BD_Ent_Per_Lim.csv", row.names = FALSE)
+
+#Unir bases de datos individuales a hogares ---------------------------------------------------------
+
+# 1. Pretratamiento BD_Ent_Per_Lim
+
+#p6020, sexo, no relevante
+#p6040, edad, no relevante
+#p6050, parentesco con jefe hogar, 1 Jefe Hogar
+
+VectorAuxIngreso<- BD_Ent_Per_Lim %>% group_by(id) %>% 
+  summarize(sum_Ingtot=sum(Ingtot))
+
+dim(VectorAuxIngreso)
+
+#p6090, cotizante-beneficiario seg social, 1 si, 2 no, 9 no sabe
+table(BD_Ent_Per_Lim$P6090) # sirve
+#p6210, Max educ. 1.Ninguno 2.Prescolar 3.Primaria 4.Secundaria 5.Media 6.Superior 9. No sabe
+table(BD_Ent_Per_Lim$P6210) # sirve
+#p7495, Recibio pago por arriendo y/o pension? 1. Si 2. No
+table(BD_Ent_Per_Lim$P7495) # sirve
+#p7505, Recibio dinero de otros hogares, instituciones, intereses, dividendos o uti censantias. 1.Si 2.No
+table(BD_Ent_Per_Lim$P7505) # sirve
+
+#con lo siguiente queda solo info del jefe hogar
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim%>%subset(P6050=="1")
+dim(BD_Ent_Per_Lim)
+
+#unir BD_Ent_Per_Lim con VectorAuxIngreso
+
+BD_Ent_Per_Lim<-left_join(BD_Ent_Per_Lim,VectorAuxIngreso, by="id")
+dim(BD_Ent_Per_Lim)
+
+#borrar variables q ya no sirve
+BD_Ent_Per_Lim<-BD_Ent_Per_Lim %>% 
+  select(-"Ingtot",-"Clase",-"Dominio")
+
+#2. Unir bases de datos de entrenamiento
+
+dim(BD_Ent_Hog_Lim)
+dim(BD_Ent_Per_Lim)
+BD_Ent_Hog_Lim<-left_join(BD_Ent_Hog_Lim,BD_Ent_Per_Lim, by="id")
+dim(BD_Ent_Hog_Lim)
+
+# 3. Pretratamiento BD_Pru_Per_Lim
+
+#p6020, sexo, no relevante
+#p6040, edad, no relevante
+#p6050, parentesco con jefe hogar, 1 Jefe Hogar
+
+#p6090, cotizante-beneficiario seg social, 1 si, 2 no, 9 no sabe
+table(BD_Pru_Per_Lim$P6090) # sirve
+#p6210, Max educ. 1.Ninguno 2.Prescolar 3.Primaria 4.Secundaria 5.Media 6.Superior 9. No sabe
+table(BD_Pru_Per_Lim$P6210) # sirve
+#p7495, Recibio pago por arriendo y/o pension? 1. Si 2. No
+table(BD_Pru_Per_Lim$P7495) # sirve
+#p7505, Recibio dinero de otros hogares, instituciones, intereses, dividendos o uti censantias. 1.Si 2.No
+table(BD_Pru_Per_Lim$P7505) # sirve
+
+#con lo siguiente queda solo info del jefe hogar
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim%>%subset(P6050=="1")
+dim(BD_Pru_Per_Lim)
+
+#borrar variables q ya no sirve
+BD_Pru_Per_Lim<-BD_Pru_Per_Lim %>% 
+  select(-"Clase",-"Dominio")
+
+#2. Unir bases de datos de entrenamiento
+
+dim(BD_Pru_Hog_Lim)
+dim(BD_Pru_Per_Lim)
+BD_Pru_Hog_Lim<-left_join(BD_Pru_Hog_Lim,BD_Pru_Per_Lim, by="id")
+
+
+
+dim(BD_Pru_Hog_Lim)
+dim(BD_Ent_Hog_Lim)
+
+colnames(BD_Pru_Hog_Lim)
+colnames(BD_Ent_Hog_Lim)
+
+BD_Ent_Hog_Lim <- BD_Ent_Hog_Lim %>%
+  mutate_at(.vars = c("P6040"),
+            .funs = factor)
+
+
+
+
+str(BD_Pru_Hog_Lim)
+str(BD_Ent_Hog_Lim)
+
+
+BD_Hog_Lim <- bind_rows(BD_Pru_Hog_Lim,BD_Ent_Hog_Lim) %>% drop_na()
+glimpse(BD_Hog_Lim)
+#Modelos de Regresión -----------------------------------------------
+
+#Selección muestra de entrenamiento y prueba
+
+id_train <- sample(1:nrow(BD_Hog_Lim),size = 0.7*nrow(BD_Hog_Lim), replace = F)
+BD_train<-BD_Hog_Lim[id_train,]
+BD_test<-BD_Hog_Lim[-id_train,]
+
+BD_train<-drop_na(BD_train)
+BD_test<-drop_na(BD_test)
+
+
+summary(BD_train$Pobre)
+summary(BD_test$Pobre)
+
+dim(BD_train) 
+colnames(BD_train)
+dim(BD_test)
+#Modelos entrenamiento
+model_1<-lm(log(Ingtotugarr+1)~1,data = BD_train) 
+model_2<-lm(log(Ingtotugarr+1)~Lp,data = BD_train)
+model_3<-lm(log(Ingtotugarr+1)~ Li,data = BD_train)
+model_4<-lm(log(Ingtotugarr+1)~Li,data = BD_train)
+model_5<-lm(log(Ingtotugarr+1)~P5000 + Oc + P6210,data = BD_train)
+model_6<-lm(log(Ingtotugarr+1)~P5090 + Oc + P6210,data = BD_train)
+model_7<-lm(log(Ingtotugarr+1)~poly(Lp, 2),data = BD_train)
+model_8<-lm(log(Ingtotugarr+1)~P5000 + Oc + P6210,data = BD_train)
+model_9<-lm(log(Ingtotugarr+1)~P5000+P5090 + Oc + P6210 ,data = BD_train)
+model_10<-lm(log(Ingtotugarr+1)~P5090+P5000*Nper + Oc + P6210,data = BD_train)
+model_11<-lm(log(Ingtotugarr+1)~P5090+P5000*Nper + Oc + P6210 + Dominio, data = BD_train)
+
+mylm <- lm(Pobre~P5090+P5000+Nper + Oc + P6210 + Dominio, data = BD_train)
+
+
+#Modelos fuera de muestra
+BD_test$model_1<-predict(model_1,newdata =  BD_test)
+BD_test$model_2<-predict(model_2,newdata = BD_test)
+BD_test$model_3<-predict(model_3,newdata = BD_test)
+BD_test$model_4<-predict(model_4,newdata = BD_test)
+BD_test$model_5<-predict(model_5,newdata = BD_test)
+BD_test$model_6<-predict(model_6,newdata = BD_test)
+BD_test$model_7<-predict(model_7,newdata = BD_test)
+BD_test$model_8<-predict(model_8,newdata = BD_test)
+BD_test$model_9<-predict(model_9,newdata = BD_test)
+BD_test$model_10<-predict(model_10,newdata = BD_test)
+BD_test$model_11<-predict(model_11,newdata = BD_test)
+
+#MSE
+mse01<-with(BD_test,mean((log(Ingtotugarr+1)-model_1)^2))
+mse02<-with(BD_test,mean((log(Ingtotugarr+1)-model_2)^2))
+mse03<-with(BD_test,mean((log(Ingtotugarr+1)-model_3)^2))
+mse04<-with(BD_test,mean((log(Ingtotugarr+1)-model_4)^2))
+mse05<-with(BD_test,mean((log(Ingtotugarr+1)-model_5)^2))
+mse06<-with(BD_test,mean((log(Ingtotugarr+1)-model_6)^2))
+mse07<-with(BD_test,mean((log(Ingtotugarr+1)-model_7)^2))
+mse08<-with(BD_test,mean((log(Ingtotugarr+1)-model_8)^2))
+mse09<-with(BD_test,mean((log(Ingtotugarr+1)-model_9)^2))
+mse10<-with(BD_test,mean((log(Ingtotugarr+1)-model_10)^2))
+mse11<-with(BD_test,mean((log(Ingtotugarr+1)-model_11)^2))
+
+
+#Grafica MSE
+vmse1<-c(mse01,mse02,mse03,mse04,mse05,mse06,mse07,mse08,mse09,mse10,mse11)
+graf2<-ggplot(mapping = aes(x=1:11, y=vmse1))+
+  geom_line(color="blue")+
+  xlab("Modelos")+
+  ylab("MSE")+
+  ggtitle("Resumen MSE")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_x_continuous(breaks = seq(1,11,1))
+graf2
+
+
+#require("gtsummary") #buen paquete para tablas descriptivas
+#require(caret)
+
+BD_Hog_Lim <- clean_names(BD_Hog_Lim)
+
+
+BD_Hog_Lim$p5090 <- factor((BD_Hog_Lim$p5090), levels=c(1 , 2, 3, 4, 5, 6) , labels = c("Propia", "Propia Pagando","Arriendo","Usufructo","Sin titulo","Otra"))
+BD_Hog_Lim$p6210  <- factor((BD_Hog_Lim$P6210), levels=c(1 , 2, 3 , 4 ,5, 6, 7) , labels = c("Ninguno", "Preescolar","Basica_primaria","Basica_secundaria",
+                                                                                             "Media","Superior","NS_NR"))
+
+
+BD_Hog_Lim$oc <- factor((BD_Hog_Lim$oc), levels=c(0, 1) , labels = c("No", "Si"))
+BD_Hog_Lim$pobre <- factor((BD_Hog_Lim$pobre), levels=c(0, 1) , labels = c("No", "Si"))
+
+
+BD_Hog_Lim <- BD_Hog_Lim %>%
+  mutate_at(.vars = c("p5000","p5010"),
+            .funs = factor)
+
+# --- balance datos --- #
+prop.table(table(BD_Hog_Lim$pobre))
+
+
+# --- KNN ---- 
+
+BD_copia <- BD_Hog_Lim %>% 
+  mutate(Pobre=ifelse(pobre==1,"pobre (1)","no pobre (0)"))
+
+BD_copia <- BD_copia %>% select(.,lp, p5000, nper, p6210, pobre)
+
+BD_copia$lp <- as.numeric(BD_copia$lp)
+BD_copia$p5000 <- as.numeric(BD_copia$p5000)
+BD_copia$nper <- as.numeric(BD_copia$nper)
+BD_copia$p6210 <- as.numeric(BD_copia$p6210)
+glimpse(BD_copia)
+
+x <- scale(BD_copia[,-5]) ## reescalar variables (para calcular distancias)
+apply(x,2,sd) ## verificar
+
+set.seed(10101)
+
+test <- sample(x=1:164959, size = (.7*164959))
+
+## k-vecinos
+k1 = knn(train=x[-test,], ## base de entrenamiento
+         test=x[test,],   ## base de testeo
+         cl=BD_copia$pobre[-test], ## outcome
+         k=1)        ## vecinos 
+
+k3 = knn(train=x[-test,], ## base de entrenamiento
+         test=x[test,],   ## base de testeo
+         cl=BD_copia$pobre[-test], ## outcome
+         k=3) 
+
+tibble(BD_copia$pobre[test],k1,k3)
+
+## matriz de confusión
+k_1 <- confusionMatrix(data=k1 , 
+                reference=BD_copia$pobre[test], 
+                mode="sens_spec" , 
+                positive="Si")
+
+k_3 <- confusionMatrix(data=k3 , 
+                       reference=BD_copia$pobre[test], 
+                       mode="sens_spec" , 
+                       positive="Si")
+k_1
+k_3
+
+## --- Particion --- 
+
+set.seed(10101)
+split1 <- createDataPartition(BD_Hog_Lim$pobre, p = .7)[[1]]
+other <- BD_Hog_Lim[-split1,] 
+training <- BD_Hog_Lim[ split1,] 
+
+dim(split1) 
+
+## Now create the evaluation and test sets
+set.seed(10101)
+split2 <- createDataPartition(other$pobre, p = 1/3)[[1]]
+evaluation <- other[ split2,]
+testing <- other[-split2,] 
+
+
+dim(training)
+dim(testing)
+dim(evaluation) 
+
+prop.table(table(training$pobre))
+prop.table(table(testing$pobre))
+prop.table(table(evaluation$pobre))
+
+##Logit 1---
+model <- as.formula("pobre ~ factor(p5090)+ nper + oc + p6210 + factor(dominio)")
+## estimations
+glm_logit <- glm(model , family=binomial(link="logit") , data=training)
+## predict pobre
+testing$predict_logit <- predict(glm_logit , testing , type="response")
+## definir la regla
+ggplot(data=testing , mapping = aes(pobre , predict_logit)) + 
+  geom_boxplot(aes(fill=pobre)) + theme_test()
+
+testing <- testing %>% 
+  mutate(p_logit=ifelse(predict_logit>0.35,1,0) %>% 
+           factor(.,levels=c(1,0),labels=c("Si","No")))
+## ROC para logit1
+pred <- prediction(testing$predict_logit, testing$pobre)
+roc_ROCR <- performance(pred,"tpr","fpr")
+plot(roc_ROCR, main = "ROC curve", colorize = T)
+abline(a = 0, b = 1)
+##area bajo la curva AUC
+auc_roc = performance(pred, measure = "auc")
+auc_roc@y.values[[1]]
+## confusion mnatrix
+confusionMatrix(data=testing$p_logit, 
+                reference=testing$pobre , 
+                mode="sens_spec" , positive="Si")
+
+summary(glm_logit, type="text")
+
+
+
+##LDA
+mylda <- lda(model, data = training)
+mylda_pred<-predict(mylda,testing)
+names(mylda_pred)
+
+posteriors<-data.frame(mylda_pred$posterior)
+posteriors$hand<-f1*p1/(f1*p1+f0*(1-p1))
+head(posteriors)
+
+mylda
+
+phat_mylda<- predict(mylda, testing, type="response")
+pred_mylda <- prediction(phat_mylda$posterior[,2], testing$pobre)
+roc_mylda <- performance(pred_mylda,"tpr","fpr")
+plot(roc_mylda, main = "ROC curve LDA", colorize = T)
+abline(a = 0, b = 1)
+#combinacion logit LDA
+plot(roc_ROCR, main = "Logit y LDA", colorize = FALSE, col="red")
+plot(roc_mylda,add=TRUE, colorize = FALSE, col="blue")
+abline(a = 0, b = 1)
+
+auc_lda = performance(pred_mylda, measure = "auc")
+auc_lda@y.values[[1]]
+
+
+## Logit_Caret-------------
+
+ctrl_def <- trainControl(method = "cv",
+                         number = 5,
+                         summaryFunction = defaultSummary,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+
+
+
+set.seed(10101)
+mylogit_caret_def <- train(model,
+                           data = training,
+                           method = "glm", #for logit
+                           trControl = ctrl_def,
+                           family = "binomial",
+                           preProcess = c("center", "scale"))
+  
+
+
+
+
+summary(mylogit_caret_def, type="text")
+
+
+
+
+##Logit_Two Summary----------
+
+
+
+ctrl_two <- trainControl(method = "cv",
+                         number = 5,
+                         summaryFunction = twoClassSummary,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+set.seed(1410)
+mylogit_caret_two <- train(
+  pobre ~p5090 + nper + oc + p6210 + dominio,
+  data = training,
+  method = "glm", #for logit
+  trControl = ctrl_two,
+  family = "binomial",
+  preProcess = c("center", "scale"))
+  
+
+mylogit_caret_two
+
+
+## Logit_Lasso_Accuracy------
+ctrl_def <- trainControl(method = "cv",
+                         number = 5,
+                         summaryFunction = defaultSummary,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+
+
+lambda_grid <- 10^seq(-4, 0.01, length = 200) #en la practica se suele usar una grilla de 200 o 300
+
+
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
+ctrl<- trainControl(method = "cv",
+                    number = 5,
+                    summaryFunction = fiveStats,
+                    classProbs = T,
+                    verbose=FALSE,
+                    savePredictions = T)
+
+
+set.seed(1410)
+mylogit_lasso_acc <- train(
+  pobre ~p5090+nper + oc + p6210 + dominio,
+  data = training,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "Accuracy",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale"))
+  
+
+pred <- prediction(testing$predict_logit, test$Default)
+roc_ROCR <- performance(pred,"tpr","fpr")
+plot(roc_ROCR, main = "ROC curve", colorize = T)
+abline(a = 0, b = 1)
+
+mylogit_lasso_acc
+
+## Logit_Lasso_ROC-------
+set.seed(1410)
+mylogit_lasso_roc <- train(
+  pobre ~p5090+nper + oc + p6210 + dominio,
+  data = training,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center","scale")
+)
+
+mylogit_lasso_roc 
+
+
+## Logit_Lasso_Sensibility--------
+set.seed(1410)
+mylogit_caret_sens <- train(
+  pobre ~p5090+nper + oc + p6210 + dominio,
+  data = training,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "Sens",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+mylogit_caret_sens 
+## Evaluation_Cutoffs-Overgrown -------
+
+evalResults <- data.frame(Pobre = evaluation$pobre)
+evalResults$Roc <- predict(mylogit_lasso_roc,
+                           newdata = evaluation,
+                           type = "prob")[,1] 
+
+library(pROC)
+rfROC <- roc(evalResults$Pobre, evalResults$Roc, levels = rev(levels(evalResults$Pobre)))
+rfROC 
+
+rfThresh <- coords(rfROC, x = "best", best.method = "closest.topleft")
+rfThresh 
+
+evalResults<-evalResults %>% mutate(hat_def.05=ifelse(evalResults$Roc>0.5,"Si","No"),
+                                    hat_def_rfThresh=ifelse(evalResults$Roc>rfThresh$threshold,"Si","No"))
+
+with(evalResults,table(Pobre,hat_def.05)) 
+
+
+with(evalResults,table(Pobre,hat_def_rfThresh)) 
+
+
+
+###Overgrown##---- 
+
+set.seed(1103)
+upSampledTrain <- upSample(x = training,
+                           y = training$pobre,
+                           ## keep the class variable name the same:
+                           yname = "Pobre")
+dim(training)
+
+dim(upSampledTrain)
+
+
+table(upSampledTrain$Pobre)
+
+
+set.seed(1410)
+mylogit_lasso_upsample <- train(
+  pobre ~p5090+nper + oc + p6210 + dominio,
+  data = upSampledTrain,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+
+
+mylogit_lasso_upsample 
+
+
+###Downsampling---------
+set.seed(1103)
+downSampledTrain <- downSample(x = training,
+                               y = training$pobre,
+                               ## keep the class variable name the same:
+                               yname = "Pobre")
+dim(training)
+
+dim(downSampledTrain)
+
+table(downSampledTrain$Pobre)
+
+set.seed(1410)
+mylogit_lasso_downsample <- train(
+  pobre ~p5090+nper + oc + p6210 + dominio,
+  data = downSampledTrain,
+  method = "glmnet",
+  trControl = ctrl,
+  family = "binomial",
+  metric = "ROC",
+  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+  preProcess = c("center", "scale")
+)
+
+mylogit_lasso_downsample
+
+##SMOTE ---- 
+
+#require("smotefamily")
+#predictors<-c("lp","p5090", "oc")
+#head( training[predictors])
+
+#smote_output = SMOTE(X = training[predictors],  target = training$pobre)
+#oversampled_data = smote_output$data
+#table(training$pobre)
+
+#table(oversampled_data$class)
+              
+#set.seed(1410)
+#mylogit_lasso_smote<- train(
+#  pobre ~p5090 + oc,
+#  data = oversampled_data,
+#  method = "glmnet",
+#  trControl = ctrl,
+#  family = "binomial",
+#  metric = "ROC",
+#  tuneGrid = expand.grid(alpha = 0,lambda=lambda_grid),
+#  preProcess = c("center", "scale")
+#)
+
+#mylogit_lasso_smote
+
+## Evaluacion -------
+
+testResults <- data.frame(Pobre = testing$pobre)
+testResults$logit<- predict(mylogit_caret_def,
+                            newdata = testing,
+                            type = "prob")[,1]
+testResults$lasso<- predict(mylogit_lasso_roc,
+                            newdata = testing,
+                            type = "prob")[,1]
+testResults$lasso_thresh<- predict(mylogit_lasso_roc,
+                                   newdata = testing,
+                                   type = "prob")[,1]
+testResults$lasso_upsample<- predict(mylogit_lasso_upsample,
+                                     newdata = testing,
+                                     type = "prob")[,1]
+testResults$mylogit_lasso_downsample<- predict(mylogit_lasso_downsample,
+                                               newdata = testing,
+                                               type = "prob")[,1]
+#testResults$mylogit_lasso_smote<- predict(mylogit_lasso_smote,
+#                                          newdata = testing,
+#                                          type = "prob")[,1] 
+
+
+
+testResults<-testResults %>%
+  mutate(logit=ifelse(logit>0.5,"Si","No"),
+         lasso=ifelse(lasso>0.5,"Si","No"),
+         lasso_thresh=ifelse(lasso_thresh>rfThresh$threshold,"Si","No"),
+         lasso_upsample=ifelse(lasso_upsample>0.5,"Si","No"),
+         mylogit_lasso_downsample=ifelse(mylogit_lasso_downsample>0.5,"Si","No"),
+         #mylogit_lasso_smote=ifelse(mylogit_lasso_smote>0.5,"Si","No"),
+  )
+
+with(testResults,table(Pobre,logit))
+
+with(testResults,table(Pobre,lasso)) 
+
+with(testResults,table(Pobre,lasso_thresh)) 
+
+with(testResults,table(Pobre,lasso_upsample)) 
+
+with(testResults,table(Pobre,mylogit_lasso_downsample)) 
+
+#with(testResults,table(Pobre,mylogit_lasso_smote))
+
+
+## Submit-------
+
+base_test_final <- BD_Hog_Lim 
+
+base_test_final$predictionclassification <- predict(glm_logit, base_test_final, type="response")
+base_test_final$predictionfinal <- predict(mylogit_caret_def, base_test_final, type="raw")
+
+base_test_final <- base_test_final %>% mutate(
+  Pobre_Clasificacion=ifelse(predictionclassification>=0.79,1,0)) 
+
+base_test_final <- base_test_final %>%  mutate(
+  Pobre_Ingreso=ifelse(base_test_final$predictionfinal=="Si",1,0))
+
+
+submit =  select(base_test_final,"id","Pobre_Clasificacion","Pobre_Ingreso")
+
+write.csv(submit,"predicciones_Garcia_Serrano_Torres_5.csv", row.names = FALSE)
